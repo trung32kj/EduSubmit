@@ -100,8 +100,11 @@ function render(assignments) {
         el('div', {}, el('a', { href: `/assignment.html?id=${a.id}`, text: a.title, style: 'font-weight:570' })),
         el('div', { class: 'row tight small', style: 'margin-top:3px' },
           a.isClosed ? el('span', { class: 'badge missing', text: 'Đã đóng' })
-            : a.isOpen ? el('span', { class: 'badge approved', text: 'Đang mở' })
-            : el('span', { class: 'badge late', text: 'Hết hạn' }),
+            : a.isOpen
+              ? a.inLateWindow
+                ? el('span', { class: 'badge late', text: 'Nhận muộn' })
+                : el('span', { class: 'badge approved', text: 'Đang mở' })
+              : el('span', { class: 'badge late', text: 'Hết hạn — đã tự khoá' }),
           a.className ? el('span', { class: 'badge info', text: a.className }) : null,
           a.pin ? el('span', { class: 'badge info', text: `PIN ${a.pin}` }) : null,
         ),
@@ -119,6 +122,16 @@ function render(assignments) {
         el('div', { class: 'row tight', style: 'justify-content:flex-end' },
           el('button', { class: 'small', text: 'Link nộp', onclick: (e) => showLink(e.currentTarget, a) }),
           el('a', { class: 'btn small', href: `/bulk.html?id=${a.id}`, text: 'Tải ảnh lên' }),
+          // Khoá / mở ngay tại danh sách: việc hay làm nhất sau khi ra bài, không
+          // đáng phải mở hộp thoại Sửa chỉ để tick một ô.
+          el('button', {
+            class: a.isClosed ? 'small primary' : 'small ghost',
+            text: a.isClosed ? 'Mở' : 'Khoá',
+            title: a.isClosed
+              ? 'Đang khoá — bấm để cho học viên nộp lại'
+              : 'Đang nhận bài — bấm để khoá không cho nộp',
+            onclick: (e) => toggleLock(e.currentTarget, a),
+          }),
           el('button', { class: 'small ghost', text: 'Sửa', onclick: () => openDialog(a) }),
           el('button', { class: 'small ghost', text: 'Xoá', onclick: (e) => remove(e.currentTarget, a) }),
         ),
@@ -148,6 +161,16 @@ function showLink(btn, a) {
   });
 }
 
+/** Khoá / mở nhận bài ngay từ danh sách, không cần mở hộp thoại Sửa. */
+async function toggleLock(btn, a) {
+  const r = await withBusy(btn, '…', () =>
+    api('POST', `/api/admin/assignments/${a.id}/lock`, { closed: !a.isClosed }),
+  );
+  if (!r) return;
+  toast(r.assignment.isClosed ? 'Đã khoá — học viên không nộp được nữa.' : 'Đã mở lại cho học viên nộp.');
+  await load();
+}
+
 async function remove(btn, a) {
   const ok = await confirmDialog({
     title: `Xoá "${a.title}"?`,
@@ -169,6 +192,7 @@ function openDialog(a) {
   $('#description').value = a?.description ?? '';
   $('#due').value = toDatetimeLocal(a?.dueAt);
   $('#closed').checked = !!a?.isClosed;
+  $('#allow-late').checked = !!a?.allowLate;
   $('#use-pin').checked = a ? !!a.pin : false;
   // Tạo mới thì mặc định theo lớp đang xem, đỡ phải chọn lại.
   $('#class').value = a ? String(a.classId ?? '') : currentClass;
@@ -192,6 +216,7 @@ $('#form').addEventListener('submit', (e) => {
       // datetime-local là giờ local -> đổi sang epoch ms ngay ở client.
       dueAt: fromDatetimeLocal($('#due').value),
       isClosed: $('#closed').checked,
+      allowLate: $('#allow-late').checked,
       classId: $('#class').value || null,
     };
 

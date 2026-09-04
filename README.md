@@ -109,6 +109,20 @@ bạn thì dùng nút *Gán các dòng trống cho…*.
 **Duyệt bài.** Bảng tổng hợp → *Xem ảnh* → *Đạt* hoặc *Cần nộp lại* kèm ghi chú.
 Bạn nào chọn sai tên thì dùng *Gán cho bạn khác*.
 
+**Duyệt nhiều bài một lượt.** Tick checkbox ở đầu các dòng (hoặc checkbox tổng ở
+hàng tiêu đề để chọn hết những bài đang hiện theo bộ lọc) → *Duyệt đạt* hoặc
+*Cần nộp lại*. Hộp xác nhận liệt kê đúng tên sắp duyệt, cảnh báo nếu trong đó có
+bài **ảnh trùng**, và cho nhập một ghi chú chung. Để trống ghi chú thì ghi chú
+riêng của từng bài vẫn giữ nguyên.
+
+**Khoá / mở nhận bài.** Nút *Khoá* ngay trong danh sách bài tập, hoặc *Khoá nhận
+bài* trong bảng tổng hợp. Dùng khi muốn mở lại cho một bạn nộp bù rồi khoá lại.
+
+**Hết giờ là tự khoá** — không cần bấm gì. Muốn vẫn nhận bài sau hạn thì tick
+*Vẫn nhận bài sau hạn, nhưng gắn nhãn "nộp muộn"* khi tạo/sửa bài tập; bài nộp
+sau hạn sẽ có nhãn đỏ *muộn*, và trang nộp nói rõ cho học viên biết. Khoá tay
+luôn thắng: đã khoá thì dù bật cho nộp muộn cũng không nộp được.
+
 **Xoá nhiều bạn một lượt.** Tick checkbox ở đầu mỗi dòng (hoặc checkbox tổng ở
 hàng tiêu đề để chọn hết những bạn đang hiện theo bộ lọc). Thanh hành động xuất
 hiện kèm số lượng đã chọn; xác nhận sẽ hiện đúng danh sách tên sắp xoá. Bạn đã

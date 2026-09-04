@@ -59,6 +59,13 @@ function renderHeader() {
     return;
   }
 
+  // Còn nhận bài nhưng đã quá hạn: nói rõ để học viên không tưởng mình nộp đúng giờ.
+  if (assignment.inLateWindow) {
+    $('#closed-box').hidden = false;
+    $('#closed-box').textContent =
+      'Đã quá hạn. Bài của bạn vẫn được nhận nhưng sẽ bị đánh dấu là NỘP MUỘN.';
+  }
+
   // Có PIN thì hỏi PIN trước. Không cho thấy ô gõ tên ngay vì gợi ý tên chính là
   // danh sách lớp — đó là thứ PIN cần bảo vệ.
   if (assignment.needsPin) {

@@ -44,8 +44,12 @@
     <div>
       <label for="due">Hạn nộp</label>
       <input type="datetime-local" id="due">
-      <p class="small muted" style="margin:5px 0 0">Quá hạn là học viên không nộp được nữa. Bạn vẫn upload hộ được. Để trống nếu không cần hạn.</p>
+      <p class="small muted" style="margin:5px 0 0">Hết giờ là tự khoá, học viên không nộp được nữa. Bạn vẫn upload hộ được. Để trống nếu không cần hạn.</p>
     </div>
+    <label class="row tight" style="font-weight:500">
+      <input type="checkbox" id="allow-late" style="width:auto;margin:0">
+      <span>Vẫn nhận bài sau hạn, nhưng gắn nhãn "nộp muộn"</span>
+    </label>
     <label class="row tight" style="font-weight:500">
       <input type="checkbox" id="use-pin" style="width:auto;margin:0">
       <span>Yêu cầu mã PIN khi nộp (nên bật nếu học viên nộp từ ngoài lớp)</span>

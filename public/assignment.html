@@ -40,6 +40,16 @@
         <button class="small" id="copy-missing">Copy danh sách chưa nộp</button>
       </div>
     </header>
+
+    <!-- Thanh duyệt hàng loạt: chỉ hiện khi đã chọn ít nhất một bài. -->
+    <div id="review-bar" class="bulk-bar" hidden role="region" aria-label="Duyệt các bài đã chọn">
+      <strong id="review-count"></strong>
+      <div class="grow"></div>
+      <button class="small ghost" id="review-clear">Bỏ chọn</button>
+      <button class="small primary" id="review-approve">Duyệt đạt</button>
+      <button class="small danger" id="review-reject">Cần nộp lại</button>
+    </div>
+
     <div id="list"></div>
   </div>
 

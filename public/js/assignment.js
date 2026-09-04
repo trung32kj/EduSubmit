@@ -17,6 +17,13 @@ if (!id) {
 
 let data = null;
 const expanded = new Set();
+/**
+ * Bài nộp đang được tick để duyệt hàng loạt.
+ *
+ * Lưu theo submissionId chứ không theo dòng: bảng vẽ lại sau mỗi lần gõ vào ô
+ * tìm kiếm, nếu bám vào dòng thì lựa chọn sẽ mất.
+ */
+const selected = new Set();
 // Cache ảnh theo submissionId: mỗi lần render lại (gõ vào ô tìm, mở thêm dòng)
 // mà gọi lại API thì gõ 6 chữ với 3 dòng đang mở là 18 request.
 const imageCache = new Map();
@@ -38,6 +45,9 @@ async function load() {
   $('#title').textContent = data.assignment.title;
   $('#filter').disabled = false;
   $('#status-filter').disabled = false;
+  // Bỏ khỏi danh sách chọn những bài không còn trong dữ liệu mới.
+  const live = new Set(data.students.filter((s) => s.submissionId).map((s) => s.submissionId));
+  for (const sid of selected) if (!live.has(sid)) selected.delete(sid);
   renderMeta();
   render();
   renderOrphans();
@@ -56,11 +66,20 @@ function renderMeta() {
       a.isClosed
         ? el('span', { class: 'badge missing', text: 'Đã đóng' })
         : a.isOpen
-          ? el('span', { class: 'badge approved', text: 'Đang nhận bài' })
-          : el('span', { class: 'badge late long', text: 'Hết hạn, không nhận bài mới' }),
+          ? a.inLateWindow
+            ? el('span', { class: 'badge late long', text: 'Quá hạn — vẫn nhận, đánh dấu muộn' })
+            : el('span', { class: 'badge approved', text: 'Đang nhận bài' })
+          : el('span', { class: 'badge late long', text: 'Hết hạn, đã tự khoá' }),
       a.className ? el('span', { class: 'badge info', text: a.className }) : null,
       a.pin ? el('span', { class: 'badge info', text: `PIN ${a.pin}` }) : null,
       el('span', { class: 'muted' }, a.dueAt ? `Hạn: ${formatTime(a.dueAt)} · ${dl.text}` : 'Không có hạn nộp'),
+      // Khoá / mở ngay tại đây: sau khi hết giờ, việc hay làm nhất là mở lại cho
+      // một bạn nộp bù rồi khoá lại.
+      el('button', {
+        class: a.isClosed ? 'small primary' : 'small ghost',
+        text: a.isClosed ? 'Mở nhận bài' : 'Khoá nhận bài',
+        onclick: (e) => toggleLock(e.currentTarget, a),
+      }),
     ),
     a.description ? el('p', { class: 'small muted', style: 'white-space:pre-wrap;margin:0', text: a.description }) : null,
     el('div', { class: 'stat-row' },
@@ -76,6 +95,16 @@ function renderMeta() {
 }
 
 const stat = (n, label) => el('div', { class: 'stat' }, el('b', { text: String(n) }), el('span', { text: label }));
+
+/** Khoá / mở nhận bài. Không mở hộp thoại Sửa chỉ để tick một ô. */
+async function toggleLock(btn, a) {
+  const r = await withBusy(btn, '…', () =>
+    api('POST', `/api/admin/assignments/${id}/lock`, { closed: !a.isClosed }),
+  );
+  if (!r) return;
+  toast(r.assignment.isClosed ? 'Đã khoá — học viên không nộp được nữa.' : 'Đã mở lại cho học viên nộp.');
+  await load();
+}
 
 // Debounce: mỗi ký tự gõ vào mà render lại cả bảng thì các dòng đang mở bị vẽ lại
 // liên tục, nhấp nháy và tốn request.
@@ -95,6 +124,14 @@ function visibleRows() {
 function render() {
   if (!data) return;
   const rows = visibleRows();
+
+  // Giữ chỗ đang cuộn. render() dựng lại cả bảng, không giữ thì mỗi lần bấm
+  // "Đạt" là trang nhảy về đầu — cảm giác như tải lại trang.
+  const oldWrap = $('#list .table-wrap');
+  const innerScroll = oldWrap?.scrollTop ?? 0;
+  const pageScroll = window.scrollY;
+  const activeId = document.activeElement?.id || null;
+
   const host = clear($('#list'));
 
   if (!rows.length) {
@@ -118,6 +155,20 @@ function render() {
     if (expanded.has(s.submissionId)) tbody.append(detailRow(s));
   }
 
+  // Checkbox tổng: chỉ chọn những bài ĐANG HIỆN theo bộ lọc, và chỉ những bài
+  // đã nộp — chọn cả dòng người dùng không thấy là cách dễ duyệt oan nhất.
+  const selectable = rows.filter((s) => s.submissionId);
+  const headCheck = el('input', {
+    type: 'checkbox',
+    'aria-label': 'Chọn tất cả bài đang hiện',
+    disabled: selectable.length === 0,
+    onchange: (e) => {
+      if (e.currentTarget.checked) for (const s of selectable) selected.add(s.submissionId);
+      else for (const s of selectable) selected.delete(s.submissionId);
+      render();
+    },
+  });
+
   host.append(el('div', {
     class: 'table-wrap',
     tabindex: 0,
@@ -126,6 +177,7 @@ function render() {
   },
     el('table', {},
       el('thead', {}, el('tr', {},
+        el('th', { class: 'check-col' }, headCheck),
         el('th', { text: 'Học viên' }),
         el('th', { text: 'Trạng thái' }),
         el('th', { class: 'num', text: 'Ảnh' }),
@@ -135,12 +187,45 @@ function render() {
       tbody,
     ),
   ));
+
+  updateReviewBar(rows, headCheck);
+  restoreScroll(innerScroll, pageScroll, activeId);
+}
+
+/**
+ * Trả lại vị trí cuộn và ô đang focus sau khi vẽ lại bảng.
+ *
+ * Không có bước này thì mỗi lần duyệt một bài là trang nhảy về đầu, người dùng
+ * tưởng trang tự tải lại.
+ */
+function restoreScroll(innerScroll, pageScroll, activeId) {
+  const wrap = $('#list .table-wrap');
+  if (wrap && innerScroll) wrap.scrollTop = innerScroll;
+  if (pageScroll) window.scrollTo({ top: pageScroll, behavior: 'instant' });
+  if (activeId) document.getElementById(activeId)?.focus({ preventScroll: true });
 }
 
 function rowFor(s) {
   const canOpen = !!s.submissionId;
   const isOpen = expanded.has(s.submissionId);
-  return el('tr', {},
+  const check = canOpen
+    ? el('input', {
+        type: 'checkbox',
+        checked: selected.has(s.submissionId),
+        'aria-label': `Chọn bài của ${s.name}`,
+        onchange: (e) => {
+          if (e.currentTarget.checked) selected.add(s.submissionId);
+          else selected.delete(s.submissionId);
+          // Chỉ cập nhật thanh hành động và màu dòng, KHÔNG vẽ lại cả bảng — vẽ
+          // lại sẽ làm mất ghi chú đang gõ ở dòng khác.
+          e.currentTarget.closest('tr')?.classList.toggle('row-selected', e.currentTarget.checked);
+          updateReviewBar(visibleRows(), $('#list thead input[type="checkbox"]'));
+        },
+      })
+    : null;
+
+  return el('tr', { class: selected.has(s.submissionId) ? 'row-selected' : null },
+    el('td', { class: 'check-col' }, check),
     el('td', {},
       el('div', { style: 'font-weight:550' }, s.name,
         s.note ? el('span', { class: 'muted small', text: ` (${s.note})` }) : null),
@@ -197,7 +282,8 @@ function rowFor(s) {
  * không thể nhồi hết vào một trang. Có cache nên mở lại là tức thì.
  */
 function detailRow(s) {
-  const cell = el('td', { colspan: 5, class: 'detail-cell' });
+  // 6 cột: checkbox + học viên + trạng thái + ảnh + nộp lúc + nút.
+  const cell = el('td', { colspan: 6, class: 'detail-cell' });
 
   const cached = imageCache.get(s.submissionId);
   if (cached) {
@@ -293,6 +379,93 @@ function detailBody(s, submission, images, currentAttempt) {
       submission.ip ? ` · IP lần cuối ${submission.ip}` : '',
     ),
   );
+}
+
+/**
+ * Thanh duyệt hàng loạt: chỉ xuất hiện khi đã chọn ít nhất một bài.
+ * Nói rõ trong số đã chọn có bao nhiêu bài đang chờ duyệt, để không ai vô tình
+ * ghi đè lên bài đã đánh "cần nộp lại".
+ */
+function updateReviewBar(rows, headCheck) {
+  const chosen = rows.filter((s) => s.submissionId && selected.has(s.submissionId));
+  const bar = $('#review-bar');
+  bar.hidden = chosen.length === 0;
+
+  const selectable = rows.filter((s) => s.submissionId);
+  if (headCheck) {
+    headCheck.checked = chosen.length > 0 && chosen.length === selectable.length;
+    // Trạng thái nửa: chọn một phần. Không có nó thì tick tổng trông như "chưa
+    // chọn gì" dù đang chọn 3/10 bài.
+    headCheck.indeterminate = chosen.length > 0 && chosen.length < selectable.length;
+  }
+
+  if (!chosen.length) return;
+  const pending = chosen.filter((s) => s.status === 'pending').length;
+  $('#review-count').textContent =
+    `Đã chọn ${chosen.length} bài` + (pending < chosen.length ? ` (${pending} đang chờ duyệt)` : '');
+}
+
+$('#review-clear').addEventListener('click', () => {
+  selected.clear();
+  render();
+});
+
+$('#review-approve').addEventListener('click', (e) => reviewSelected(e.currentTarget, 'approved'));
+$('#review-reject').addEventListener('click', (e) => reviewSelected(e.currentTarget, 'rejected'));
+
+async function reviewSelected(btn, status) {
+  const chosen = visibleRows().filter((s) => s.submissionId && selected.has(s.submissionId));
+  if (!chosen.length) return;
+
+  const label = status === 'approved' ? 'Đạt' : 'Cần nộp lại';
+  const dup = chosen.filter((s) => s.duplicateImages).length;
+  const notPending = chosen.filter((s) => s.status !== 'pending').length;
+
+  const lines = [`${chosen.length} bài sẽ được đánh "${label}".`];
+  // Cảnh báo đúng chỗ đáng cảnh báo: duyệt đạt cho bài trùng ảnh là bỏ qua dấu
+  // hiệu gian lận rõ nhất mà hệ thống tìm được.
+  if (dup && status === 'approved') {
+    lines.push(`Lưu ý: ${dup} bài có ảnh TRÙNG với bạn khác.`);
+  }
+  if (notPending) {
+    lines.push(`${notPending} bài đã được duyệt trước đó sẽ bị ghi đè.`);
+  }
+
+  let note = '';
+  const noteInput = el('input', {
+    type: 'text',
+    maxlength: 2000,
+    'aria-label': 'Ghi chú chung',
+    placeholder: status === 'rejected' ? 'Ví dụ: ảnh mờ, chụp lại' : 'Ghi chú chung (không bắt buộc)',
+    oninput: (e) => { note = e.currentTarget.value; },
+  });
+
+  const ok = await confirmDialog({
+    title: `Đánh "${label}" cho ${chosen.length} bài?`,
+    message: lines.join('\n'),
+    confirmLabel: label,
+    danger: status === 'rejected',
+    previewText: chosen
+      .map((s) => `• ${s.name}${s.note ? ` (${s.note})` : ''}${s.duplicateImages ? ' — ẢNH TRÙNG' : ''}`)
+      .join('\n'),
+    extra: noteInput,
+  });
+  if (!ok) return;
+
+  const r = await withBusy(btn, 'Đang lưu…', () =>
+    api('POST', `/api/admin/assignments/${id}/review-bulk`, {
+      ids: chosen.map((s) => s.submissionId),
+      status,
+      // Ghi chú rỗng thì không gửi, để không xoá mất ghi chú riêng của từng bài.
+      ...(note.trim() ? { adminNote: note } : {}),
+    }),
+  );
+  if (!r) return;
+
+  selected.clear();
+  for (const s of chosen) imageCache.delete(s.submissionId);
+  toast(`Đã đánh "${label}" cho ${r.updated} bài.`);
+  await load();
 }
 
 async function removeImage(btn, img, s) {

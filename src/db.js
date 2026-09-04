@@ -258,6 +258,14 @@ const MIGRATIONS = [
   () => db.exec(`
     ALTER TABLE assignments ADD COLUMN pin TEXT;
   `),
+
+  // v7 — cho phép nộp muộn hay không.
+  //
+  // Mặc định 0 = hết hạn là khoá (giữ đúng hành vi cũ). Đặt 1 thì quá hạn vẫn
+  // nhận bài nhưng gắn nhãn "nộp muộn" để giáo viên biết.
+  () => db.exec(`
+    ALTER TABLE assignments ADD COLUMN allow_late INTEGER NOT NULL DEFAULT 0;
+  `),
 ];
 
 export function migrate() {

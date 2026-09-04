@@ -9,6 +9,7 @@ import { displayName, normalize, squash, parseRoster, safeFileName } from '../no
 import { matchFilenames } from '../match.js';
 import {
   isOpen,
+  isLateWindow,
   str,
   intId,
   parseTimestamp,
@@ -378,6 +379,10 @@ function assignmentRow(a) {
     dueAt: a.due_at,
     isClosed: !!a.is_closed,
     isOpen: isOpen(a),
+    allowLate: !!a.allow_late,
+    // Quá hạn nhưng vẫn nhận (vì allowLate) — giao diện cần phân biệt với
+    // "đang mở trong hạn" để giáo viên biết bài mới sẽ bị đánh dấu muộn.
+    inLateWindow: isLateWindow(a),
     slug: a.slug,
     classId: a.class_id ?? null,
     className: a.class_name ?? null,
@@ -443,14 +448,15 @@ adminRouter.post('/assignments', (req, res) => {
   }
 
   const row = getReturning(
-    `INSERT INTO assignments (title, description, due_at, is_closed, slug, class_id, pin, created_at)
-     VALUES (?, ?, ?, 0, ?, ?, ?, ?) RETURNING *`,
+    `INSERT INTO assignments (title, description, due_at, is_closed, slug, class_id, pin, allow_late, created_at)
+     VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?) RETURNING *`,
     title,
     description,
     dueAt,
     newSlug(),
     classId,
     parsePin(req.body?.pin) ?? null,
+    !!req.body?.allowLate,
     Date.now(),
   );
   res.status(201).json({ assignment: assignmentRow(row) });
@@ -475,7 +481,7 @@ adminRouter.patch('/assignments/:id', (req, res) => {
   const pin = parsePin(req.body?.pin);
 
   const row = getReturning(
-    `UPDATE assignments SET title = ?, description = ?, due_at = ?, is_closed = ?, class_id = ?, pin = ?
+    `UPDATE assignments SET title = ?, description = ?, due_at = ?, is_closed = ?, class_id = ?, pin = ?, allow_late = ?
      WHERE id = ? RETURNING *`,
     title ?? existing.title,
     req.body?.description === undefined ? existing.description : (str(req.body.description, 5000) ?? ''),
@@ -483,9 +489,99 @@ adminRouter.patch('/assignments/:id', (req, res) => {
     req.body?.isClosed === undefined ? existing.is_closed : !!req.body.isClosed,
     classId === undefined ? existing.class_id : classId,
     pin === undefined ? existing.pin : pin,
+    req.body?.allowLate === undefined ? existing.allow_late : !!req.body.allowLate,
     id,
   );
   res.json({ assignment: assignmentRow(row) });
+});
+
+/**
+ * Khoá / mở nhận bài, bấm một nút từ danh sách bài tập.
+ *
+ * Có endpoint riêng vì đây là việc làm thường xuyên nhất sau khi ra bài — mở hộp
+ * thoại Sửa chỉ để tick một ô là quá nhiều bước.
+ */
+adminRouter.post('/assignments/:id/lock', (req, res) => {
+  const id = intId(req.params.id);
+  if (!id) throw badRequest('id không hợp lệ');
+  const existing = get('SELECT * FROM assignments WHERE id = ?', id);
+  if (!existing) throw notFound('Không có bài tập này');
+
+  // Không truyền gì thì lật trạng thái hiện tại.
+  const closed = req.body?.closed === undefined ? !existing.is_closed : !!req.body.closed;
+  const row = getReturning(
+    'UPDATE assignments SET is_closed = ? WHERE id = ? RETURNING *',
+    closed,
+    id,
+  );
+  res.json({ assignment: assignmentRow(row) });
+});
+
+/**
+ * Duyệt hàng loạt: đặt trạng thái cho nhiều bài nộp trong một lượt.
+ *
+ * Việc thật của giáo viên là "cả lớp nộp đúng rồi, duyệt hết" — bấm từng dòng
+ * cho 40 bạn là quá lâu. Nhận danh sách id, hoặc `all: true` để lấy mọi bài
+ * đang chờ duyệt của bài tập đó.
+ */
+adminRouter.post('/assignments/:id/review-bulk', (req, res) => {
+  const id = intId(req.params.id);
+  if (!id) throw badRequest('id không hợp lệ');
+  if (!get('SELECT id FROM assignments WHERE id = ?', id)) throw notFound('Không có bài tập này');
+
+  const status = str(req.body?.status, 20);
+  if (!status || !STATUSES.has(status)) throw badRequest('Trạng thái không hợp lệ');
+  const adminNote = req.body?.adminNote === undefined ? null : (str(req.body.adminNote, 2000) ?? '');
+
+  let ids;
+  if (req.body?.all === true) {
+    // Chỉ lấy bài CHỜ DUYỆT: "duyệt hết" không được ghi đè lên bài đã đánh
+    // "cần nộp lại" — đó là quyết định giáo viên đã cân nhắc rồi.
+    ids = all(
+      "SELECT id FROM submissions WHERE assignment_id = ? AND status = 'pending'",
+      id,
+    ).map((r) => r.id);
+  } else {
+    const raw = req.body?.ids;
+    if (!Array.isArray(raw) || !raw.length) throw badRequest('Chưa chọn bài nộp nào');
+    if (raw.length > 500) throw badRequest('Tối đa 500 bài mỗi lượt');
+    const wanted = [...new Set(raw.map(intId).filter(Boolean))];
+    if (!wanted.length) throw badRequest('Danh sách id không hợp lệ');
+    // Chuỗi "?,?,?" sinh từ ĐỘ DÀI mảng, không từ nội dung -> không có dữ liệu
+    // ngoài nào đi vào câu SQL. Mọi id vẫn bind qua tham số.
+    const marks = Array(wanted.length).fill('?').join(',');
+    // Lọc theo assignment_id: id từ client không được dùng để sửa bài tập khác.
+    ids = all(
+      `SELECT id FROM submissions WHERE assignment_id = ? AND id IN (${marks})`,
+      id,
+      ...wanted,
+    ).map((r) => r.id);
+  }
+
+  if (!ids.length) return res.json({ ok: true, updated: 0 });
+
+  const now = Date.now();
+  const marks = Array(ids.length).fill('?').join(',');
+  tx(() => {
+    if (adminNote === null) {
+      run(
+        `UPDATE submissions SET status = ?, reviewed_at = ? WHERE id IN (${marks})`,
+        status,
+        now,
+        ...ids,
+      );
+    } else {
+      run(
+        `UPDATE submissions SET status = ?, admin_note = ?, reviewed_at = ? WHERE id IN (${marks})`,
+        status,
+        adminNote,
+        now,
+        ...ids,
+      );
+    }
+  });
+
+  res.json({ ok: true, updated: ids.length });
 });
 
 adminRouter.delete('/assignments/:id', async (req, res) => {

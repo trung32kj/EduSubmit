@@ -54,12 +54,26 @@ export function findDuplicateImages(assignmentId) {
  * Một hàm duy nhất cho cả API meta và API submit, để trang nộp không bao giờ
  * hiện "còn mở" trong khi server lại chặn. Đường admin upload hộ KHÔNG gọi hàm
  * này (admin vẫn nộp hộ được sau hạn).
+ *
+ * allow_late = 1 thì quá hạn vẫn nhận, chỉ gắn nhãn "nộp muộn". Mặc định 0 nên
+ * hết giờ là tự khoá, không cần ai bấm gì.
  */
 export function isOpen(assignment) {
   if (!assignment) return false;
   if (assignment.is_closed) return false;
   if (assignment.due_at == null) return true;
+  if (assignment.allow_late) return true;
   return Date.now() <= assignment.due_at;
+}
+
+/** Quá hạn nhưng vẫn nhận bài (vì allow_late). Dùng để nói rõ trên trang nộp. */
+export function isLateWindow(assignment) {
+  return !!(
+    assignment?.allow_late &&
+    assignment.due_at != null &&
+    Date.now() > assignment.due_at &&
+    !assignment.is_closed
+  );
 }
 
 export function assignmentPublic(a) {
@@ -69,6 +83,9 @@ export function assignmentPublic(a) {
     dueAt: a.due_at,
     isClosed: !!a.is_closed,
     isOpen: isOpen(a),
+    allowLate: !!a.allow_late,
+    // Đang trong "giờ bù": học viên cần biết bài mình sẽ bị đánh dấu nộp muộn.
+    inLateWindow: isLateWindow(a),
     // Chỉ nói CÓ hay KHÔNG cần PIN, không bao giờ trả giá trị PIN ra ngoài.
     needsPin: !!a.pin,
   };
