@@ -264,6 +264,12 @@ button.big { padding: 14px 20px; font-size: 1.02rem; width: 100%; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 .btn.small { padding: 5px 10px; font-size: 0.85rem; }
+/* <a> không có thuộc tính disabled như <button>, phải tự làm. */
+.btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
 
 /* Chừa chỗ cho thanh điều hướng trước khi JS vẽ nó, để nội dung không nhảy. */
 .topbar-placeholder { height: 53px; background: var(--accent-deep); }
@@ -303,6 +309,44 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   padding: 0 18px;
 }
 .table-wrap:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* ------------------------------------------------------ chọn nhiều dòng */
+
+/* Cột checkbox: hẹp, không co lại khi bảng chật. */
+.check-col { width: 34px; padding-right: 0; }
+.check-col input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  display: block;
+}
+
+tbody tr.row-selected { background: var(--accent-soft); }
+tbody tr.row-selected:hover { background: #d8e8f8; }
+
+/* Thanh hành động cho các dòng đã chọn. Dính dưới thanh điều hướng để khi cuộn
+   danh sách dài vẫn thấy số lượng đang chọn và nút xoá. */
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 9px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  position: sticky;
+  top: 53px;
+  z-index: 3;
+}
+@media (max-width: 720px) {
+  /* Trên điện thoại thanh điều hướng cao 2 dòng. */
+  .bulk-bar { top: 84px; }
+}
 
 /* ------------------------------------------------------------------- chips */
 
@@ -629,9 +673,26 @@ details.raw summary { cursor: pointer; color: var(--ink-2); font-size: 0.88rem; 
     letter-spacing: 0.04em;
     flex: 0 0 76px;
   }
-  .cards-sm td:first-child { padding-bottom: 6px; }
-  .cards-sm td:first-child::before { content: none; }
+  /* Ô đầu tiên của thẻ (tên) không cần nhãn; các ô sau lấy nhãn từ data-label.
+     Dùng .name-cell thay vì :first-child vì cột đầu giờ là checkbox. */
+  .cards-sm td.name-cell { padding-bottom: 6px; }
+  .cards-sm td.name-cell::before { content: none; }
+  .cards-sm td:first-child:not(.check-col) { padding-bottom: 6px; }
+  .cards-sm td:first-child:not(.check-col)::before { content: none; }
   .cards-sm td.num, .cards-sm th.num { text-align: left; }
+
+  /* Ở dạng thẻ, checkbox đưa lên góc phải để bấm được bằng ngón tay mà không đẩy
+     tên xuống dòng. */
+  .cards-sm tr { position: relative; padding-right: 44px; }
+  .cards-sm td.check-col {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: auto;
+    padding: 0;
+  }
+  .cards-sm td.check-col::before { content: none; }
+  .cards-sm td.check-col input[type="checkbox"] { width: 22px; height: 22px; }
   /* Dòng chi tiết (ảnh + nút duyệt) trải hết chiều ngang thẻ. */
   .cards-sm td[colspan] { display: block; }
   .cards-sm td[colspan]::before { content: none; }

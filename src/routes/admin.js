@@ -16,6 +16,7 @@ import {
   notFound,
   searchStudents,
   findDuplicateImages,
+  HttpError,
 } from '../shared.js';
 import {
   upload,
@@ -223,6 +224,53 @@ adminRouter.post('/students/import', (req, res) => {
     added: result.added,
     skipped: parsed.length - result.added,
     duplicates: result.duplicatesInDb,
+  });
+});
+
+/**
+ * Xoá/ẩn nhiều học viên trong một lượt.
+ *
+ * Giữ đúng quy tắc của đường xoá lẻ: bạn nào đã nộp bài thì chỉ ẩn khỏi danh
+ * sách (bài nộp và ảnh giữ nguyên), bạn nào chưa nộp gì thì xoá hẳn. Làm trong
+ * một transaction để không còn danh sách nửa vời khi lỗi giữa đường.
+ */
+adminRouter.post('/students/bulk-delete', (req, res) => {
+  const raw = req.body?.ids;
+  if (!Array.isArray(raw) || !raw.length) throw badRequest('Chưa chọn học viên nào');
+  if (raw.length > 500) throw badRequest('Tối đa 500 học viên mỗi lượt');
+
+  const ids = [...new Set(raw.map(intId).filter(Boolean))];
+  if (!ids.length) throw badRequest('Danh sách id không hợp lệ');
+
+  // Chuỗi "?,?,?" sinh từ ĐỘ DÀI mảng, không từ nội dung -> không có dữ liệu
+  // ngoài nào đi vào câu SQL. Mọi id vẫn bind qua tham số.
+  const marks = (n) => Array(n).fill('?').join(',');
+
+  const rows = all(
+    `SELECT s.id, s.name,
+            (SELECT COUNT(*) FROM submissions WHERE student_id = s.id) AS submission_count
+     FROM students s WHERE s.id IN (${marks(ids.length)})`,
+    ...ids,
+  );
+
+  const toHide = rows.filter((r) => r.submission_count > 0).map((r) => r.id);
+  // Chưa nộp bài nào thì cũng không có ảnh nào trên đĩa -> không phải dọn file.
+  const toDelete = rows.filter((r) => r.submission_count === 0).map((r) => r.id);
+
+  tx(() => {
+    if (toHide.length) {
+      run(`UPDATE students SET is_active = 0 WHERE id IN (${marks(toHide.length)})`, ...toHide);
+    }
+    if (toDelete.length) {
+      run(`DELETE FROM students WHERE id IN (${marks(toDelete.length)})`, ...toDelete);
+    }
+  });
+
+  res.json({
+    ok: true,
+    hidden: toHide.length,
+    deleted: toDelete.length,
+    notFound: ids.length - rows.length,
   });
 });
 
@@ -597,6 +645,13 @@ adminRouter.get('/submissions/:id/images', (req, res) => {
 
 const STATUSES = new Set(['pending', 'approved', 'rejected']);
 
+/** Nhãn tiếng Việt của trạng thái, dùng để đặt tên file ZIP. */
+const STATUS_LABEL = {
+  pending: 'chờ duyệt',
+  approved: 'đạt',
+  rejected: 'cần nộp lại',
+};
+
 /**
  * Duyệt bài, ghi chú, hoặc GÁN LẠI sang học viên khác.
  *
@@ -920,11 +975,25 @@ adminRouter.get('/assignments/:id/link', async (req, res) => {
 });
 
 /** Tải toàn bộ ảnh của 1 bài tập, tên file trong ZIP là tên học viên. */
+/**
+ * Tải ảnh của một bài tập về, tên file trong ZIP là tên học viên.
+ *
+ * ?status=approved|pending|rejected  chỉ lấy bài ở trạng thái đó
+ * ?latest=1                          chỉ lấy ảnh của lần nộp mới nhất
+ *
+ * Có lọc theo trạng thái vì việc thật của giáo viên là "tải về những bài đã đạt
+ * để lưu" hoặc "tải về những bài chờ duyệt để chấm offline" — tải hết rồi tự lọc
+ * trong thư mục thì mất công hơn nhiều.
+ */
 adminRouter.get('/assignments/:id/export.zip', (req, res) => {
   const id = intId(req.params.id);
   if (!id) throw badRequest('id không hợp lệ');
   const a = get('SELECT * FROM assignments WHERE id = ?', id);
   if (!a) throw notFound('Không có bài tập này');
+
+  const status = str(req.query.status, 20);
+  if (status && !STATUSES.has(status)) throw badRequest('Trạng thái không hợp lệ');
+  const latestOnly = str(req.query.latest) === '1';
 
   const rows = all(
     `SELECT i.stored_name, i.attempt_no, st.name AS student_name, st.note AS student_note,
@@ -933,8 +1002,10 @@ adminRouter.get('/assignments/:id/export.zip', (req, res) => {
      JOIN submissions sub ON sub.id = i.submission_id
      JOIN students st ON st.id = sub.student_id
      WHERE sub.assignment_id = ?
+       ${status ? 'AND sub.status = ?' : ''}
+       ${latestOnly ? 'AND i.attempt_no = sub.attempt_no' : ''}
      ORDER BY st.name COLLATE NOCASE, i.attempt_no, i.id`,
-    id,
+    ...(status ? [id, status] : [id]),
   );
 
   const entries = [];
@@ -951,7 +1022,19 @@ adminRouter.get('/assignments/:id/export.zip', (req, res) => {
     });
   }
 
-  const zipName = `${safeFileName(a.title) || 'bai-tap'}.zip`;
+  // Không có ảnh nào thì nói rõ, đừng đưa người dùng một file ZIP rỗng và để họ
+  // tự đoán là lỗi hay thật sự chưa ai nộp.
+  if (!entries.length) {
+    throw new HttpError(
+      404,
+      status
+        ? `Chưa có ảnh nào ở trạng thái "${STATUS_LABEL[status]}" để tải.`
+        : 'Bài tập này chưa có ảnh nào được nộp.',
+    );
+  }
+
+  const suffix = status ? ` - ${STATUS_LABEL[status]}` : '';
+  const zipName = `${safeFileName(a.title) || 'bai-tap'}${suffix}.zip`;
   res.setHeader('Content-Type', 'application/zip');
   // filename* để tên có dấu tiếng Việt không bị hỏng.
   res.setHeader(
@@ -959,4 +1042,36 @@ adminRouter.get('/assignments/:id/export.zip', (req, res) => {
     `attachment; filename="export.zip"; filename*=UTF-8''${encodeURIComponent(zipName)}`,
   );
   createZipStream(entries).pipe(res);
+});
+
+/** Đếm trước xem tải sẽ được bao nhiêu ảnh, để nút hiện số cho người dùng biết. */
+adminRouter.get('/assignments/:id/export-info', (req, res) => {
+  const id = intId(req.params.id);
+  if (!id) throw badRequest('id không hợp lệ');
+  if (!get('SELECT id FROM assignments WHERE id = ?', id)) throw notFound('Không có bài tập này');
+
+  const rows = all(
+    `SELECT sub.status, COUNT(i.id) AS n, SUM(i.size_bytes) AS bytes,
+            SUM(CASE WHEN i.attempt_no = sub.attempt_no THEN 1 ELSE 0 END) AS latest_n,
+            SUM(CASE WHEN i.attempt_no = sub.attempt_no THEN i.size_bytes ELSE 0 END) AS latest_bytes
+     FROM submission_images i
+     JOIN submissions sub ON sub.id = i.submission_id
+     WHERE sub.assignment_id = ?
+     GROUP BY sub.status`,
+    id,
+  );
+
+  const byStatus = {};
+  let total = 0;
+  let totalBytes = 0;
+  let latestTotal = 0;
+  let latestBytes = 0;
+  for (const r of rows) {
+    byStatus[r.status] = { count: r.n, bytes: r.bytes ?? 0, latestCount: r.latest_n ?? 0 };
+    total += r.n;
+    totalBytes += r.bytes ?? 0;
+    latestTotal += r.latest_n ?? 0;
+    latestBytes += r.latest_bytes ?? 0;
+  }
+  res.json({ total, totalBytes, latestTotal, latestBytes, byStatus });
 });

@@ -1,5 +1,5 @@
 import {
-  api, el, $, clear, setAlert, renderTopbar, toast, withBusy,
+  api, el, $, clear, mount, setAlert, renderTopbar, toast, withBusy,
   attachCombo, pickStudentDialog, openLightbox,
 } from '/js/app.js';
 
@@ -215,7 +215,7 @@ function rowEl(row, index) {
   }
   if (hints.children.length) cell.append(hints);
 
-  tr.append(
+  mount(tr,
     el('td', { dataset: { label: 'Ảnh' } }, preview),
     el('td', { dataset: { label: 'File' } },
       el('div', { class: 'fname truncate', text: row.file.name, title: row.file.name }),

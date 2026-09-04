@@ -93,6 +93,21 @@ export function clear(node) {
   return node;
 }
 
+/**
+ * Thêm con vào một node, bỏ qua null/undefined/false.
+ *
+ * `el()` đã tự lọc, nhưng `.append()` gốc của DOM thì KHÔNG: truyền null vào nó
+ * sẽ in ra chữ "null" trên trang. Dùng hàm này ở mọi chỗ append kết quả của một
+ * biểu thức điều kiện.
+ */
+export function mount(host, ...children) {
+  for (const c of children.flat()) {
+    if (c === null || c === undefined || c === false) continue;
+    host.append(typeof c === 'object' ? c : document.createTextNode(String(c)));
+  }
+  return host;
+}
+
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 

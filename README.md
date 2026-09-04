@@ -106,6 +106,16 @@ bạn thì dùng nút *Gán các dòng trống cho…*.
 **Duyệt bài.** Bảng tổng hợp → *Xem ảnh* → *Đạt* hoặc *Cần nộp lại* kèm ghi chú.
 Bạn nào chọn sai tên thì dùng *Gán cho bạn khác*.
 
+**Xoá nhiều bạn một lượt.** Tick checkbox ở đầu mỗi dòng (hoặc checkbox tổng ở
+hàng tiêu đề để chọn hết những bạn đang hiện theo bộ lọc). Thanh hành động xuất
+hiện kèm số lượng đã chọn; xác nhận sẽ hiện đúng danh sách tên sắp xoá. Bạn đã
+nộp bài thì chỉ bị ẩn khỏi danh sách, bài nộp và ảnh giữ nguyên.
+
+**Lấy ảnh về máy.** Nút *Tải ảnh về (ZIP)*. Chọn được tải tất cả hay chỉ một
+trạng thái (đã đạt / chờ duyệt / cần nộp lại), và bỏ ảnh của các lần nộp cũ. Hộp
+thoại hiện trước số ảnh và dung lượng để không bấm tải rồi ngồi đợi mấy trăm MB.
+Tên file trong ZIP là tên học viên, kèm ghi chú nếu có — mở ra là biết ảnh của ai.
+
 **Ảnh trùng.** Nếu hai bạn nộp đúng cùng một file (chuyển ảnh cho nhau rồi mỗi
 người nộp), bảng tổng hợp gắn nhãn đỏ *ảnh trùng* kèm tên bạn kia. So bằng nội
 dung ảnh nên đổi tên file không lách được. Cùng một bạn nộp lại ảnh cũ của chính
@@ -113,8 +123,6 @@ mình thì không bị tính.
 
 **Nhắc bạn chưa nộp.** Nút *Copy danh sách chưa nộp* cho ra danh sách tên, mỗi
 dòng một tên, dán thẳng vào Zalo.
-
-**Lấy ảnh về máy.** Nút *Tải ZIP* — tên file trong ZIP là tên học viên.
 
 ## Học viên nộp bài
 
@@ -175,7 +183,7 @@ mật khẩu và toàn bộ ảnh của học viên** — giữ nó cẩn thận
 npm test
 ```
 
-75 test. Dùng database tạm trong thư mục temp của hệ thống, không đụng vào
+85 test. Dùng database tạm trong thư mục temp của hệ thống, không đụng vào
 `data/app.db`.
 
 ## Cấu trúc

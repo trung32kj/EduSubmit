@@ -1,5 +1,5 @@
 import {
-  api, el, $, clear, setAlert, renderTopbar, formatTime, formatBytes,
+  api, el, $, clear, mount, setAlert, renderTopbar, formatTime, formatBytes,
   relativeDeadline, toDatetimeLocal, fromDatetimeLocal, copyText, toast,
   withBusy, confirmDialog,
 } from '/js/app.js';
@@ -70,7 +70,7 @@ function render(assignments) {
   const host = clear($('#list'));
 
   if (!assignments.length) {
-    host.append(
+    mount(host,
       el('div', { class: 'empty stack' },
         el('p', { text: currentClass ? 'Lớp này chưa có bài tập nào.' : 'Chưa có bài tập nào.' }),
         classes.length === 0

@@ -195,6 +195,14 @@ $('#class-filter').addEventListener('change', () => {
 
 // ------------------------------------------------------------ học viên
 
+/**
+ * Các bạn đang được tick chọn.
+ *
+ * Lưu theo id chứ không theo dòng trong bảng: bảng được vẽ lại sau mỗi lần gõ
+ * vào ô tìm kiếm, nếu bám vào dòng thì lựa chọn sẽ mất.
+ */
+const selected = new Set();
+
 async function loadStudents() {
   try {
     const params = new URLSearchParams();
@@ -202,23 +210,29 @@ async function loadStudents() {
     if (currentClass) params.set('classId', currentClass);
     const r = await api('GET', '/api/admin/students?' + params);
     students = r.students;
+    // Bỏ khỏi danh sách chọn những bạn không còn trong dữ liệu mới.
+    const live = new Set(students.map((s) => s.id));
+    for (const id of selected) if (!live.has(id)) selected.delete(id);
     render();
   } catch (err) {
     setAlert($('#alert'), err.message);
   }
 }
 
-function render() {
+function visibleStudents() {
   const q = $('#filter').value.trim().toLowerCase();
-  const shown = q
-    ? students.filter((s) => (s.name + ' ' + s.note).toLowerCase().includes(q))
-    : students;
+  return q ? students.filter((s) => (s.name + ' ' + s.note).toLowerCase().includes(q)) : students;
+}
+
+function render() {
+  const shown = visibleStudents();
 
   const active = students.filter((s) => s.isActive).length;
   $('#count').textContent = `${active} đang học${students.length > active ? `, ${students.length - active} đã ẩn` : ''}`;
 
   const host = clear($('#list'));
   if (!shown.length) {
+    updateBulkBar([]);
     host.append(el('div', {
       class: 'empty',
       text: students.length
@@ -230,12 +244,25 @@ function render() {
     return;
   }
 
+  // Checkbox tổng: tick = chọn hết những bạn ĐANG HIỆN (theo bộ lọc), không phải
+  // cả danh sách — chọn cả những dòng người dùng không thấy là cách dễ xoá oan nhất.
+  const headCheck = el('input', {
+    type: 'checkbox',
+    'aria-label': 'Chọn tất cả các bạn đang hiện',
+    onchange: (e) => {
+      if (e.currentTarget.checked) for (const s of shown) selected.add(s.id);
+      else for (const s of shown) selected.delete(s.id);
+      render();
+    },
+  });
+
   const tbody = el('tbody');
-  for (const s of shown) tbody.append(el('tr', {}, ...cells(s)));
+  for (const s of shown) tbody.append(el('tr', { class: selected.has(s.id) ? 'row-selected' : null }, ...cells(s)));
 
   host.append(el('div', { class: 'table-wrap', tabindex: 0, role: 'region', 'aria-label': 'Danh sách học viên' },
     el('table', {},
       el('thead', {}, el('tr', {},
+        el('th', { class: 'check-col' }, headCheck),
         el('th', { text: 'Tên' }),
         el('th', { text: 'Ghi chú' }),
         el('th', { text: 'Lớp' }),
@@ -245,9 +272,88 @@ function render() {
       tbody,
     ),
   ));
+
+  updateBulkBar(shown, headCheck);
+}
+
+/** Thanh hành động chỉ xuất hiện khi có ít nhất một bạn được chọn. */
+function updateBulkBar(shown, headCheck) {
+  const chosen = shown.filter((s) => selected.has(s.id));
+  const bar = $('#bulk-bar');
+  bar.hidden = chosen.length === 0;
+
+  if (headCheck) {
+    headCheck.checked = chosen.length > 0 && chosen.length === shown.length;
+    // Trạng thái nửa: chọn một phần. Không có nó thì tick tổng trông như "chưa
+    // chọn gì" dù đang chọn 3/10 bạn.
+    headCheck.indeterminate = chosen.length > 0 && chosen.length < shown.length;
+  }
+
+  if (!chosen.length) return;
+  const withWork = chosen.filter((s) => s.submissionCount > 0).length;
+  $('#bulk-count').textContent =
+    `Đã chọn ${chosen.length} bạn` + (withWork ? ` (${withWork} bạn đã nộp bài)` : '');
+}
+
+$('#bulk-clear').addEventListener('click', () => {
+  selected.clear();
+  render();
+});
+
+$('#bulk-delete').addEventListener('click', (e) => bulkDelete(e.currentTarget));
+
+async function bulkDelete(btn) {
+  const chosen = visibleStudents().filter((s) => selected.has(s.id));
+  if (!chosen.length) return;
+
+  const withWork = chosen.filter((s) => s.submissionCount > 0);
+  const noWork = chosen.filter((s) => s.submissionCount === 0);
+
+  const lines = [];
+  if (noWork.length) lines.push(`${noWork.length} bạn chưa nộp bài nào → xoá hẳn.`);
+  if (withWork.length) {
+    lines.push(
+      `${withWork.length} bạn đã nộp bài → chỉ ẩn khỏi danh sách, bài nộp và ảnh giữ nguyên.`,
+    );
+  }
+
+  const ok = await confirmDialog({
+    title: `Xoá ${chosen.length} bạn đã chọn?`,
+    message: lines.join('\n\n'),
+    confirmLabel: 'Xoá',
+    // Cho xem đúng những tên sắp bị xoá: danh sách dài thì rất dễ tick nhầm.
+    preview: chosen
+      .map((s) => `• ${s.name}${s.note ? ` (${s.note})` : ''}${s.submissionCount ? ` — ${s.submissionCount} bài` : ''}`)
+      .join('\n'),
+  });
+  if (!ok) return;
+
+  await withBusy(btn, 'Đang xoá…', async () => {
+    const r = await api('POST', '/api/admin/students/bulk-delete', { ids: chosen.map((s) => s.id) });
+    selected.clear();
+    const parts = [];
+    if (r.deleted) parts.push(`xoá ${r.deleted} bạn`);
+    if (r.hidden) parts.push(`ẩn ${r.hidden} bạn (bài nộp vẫn còn)`);
+    toast('Đã ' + (parts.join(', ') || 'xong') + '.');
+    await loadAll();
+  });
 }
 
 function cells(s) {
+  const check = el('input', {
+    type: 'checkbox',
+    checked: selected.has(s.id),
+    'aria-label': `Chọn ${s.name}`,
+    onchange: (e) => {
+      if (e.currentTarget.checked) selected.add(s.id);
+      else selected.delete(s.id);
+      // Chỉ cập nhật thanh hành động và màu dòng, KHÔNG vẽ lại cả bảng — vẽ lại
+      // sẽ làm mất nội dung đang gõ ở các ô sửa tên khác.
+      e.currentTarget.closest('tr')?.classList.toggle('row-selected', e.currentTarget.checked);
+      updateBulkBar(visibleStudents(), $('#list thead input[type="checkbox"]'));
+    },
+  });
+
   const nameInput = el('input', {
     type: 'text',
     value: s.name,
@@ -285,7 +391,8 @@ function cells(s) {
   noteInput.addEventListener('keydown', onEnter);
 
   return [
-    el('td', {},
+    el('td', { class: 'check-col' }, check),
+    el('td', { class: 'name-cell' },
       nameInput,
       s.duplicate ? el('span', { class: 'badge info', text: 'trùng tên', style: 'margin-left:4px' }) : null,
       s.isActive ? null : el('span', { class: 'badge missing', text: 'đã ẩn', style: 'margin-left:4px' }),

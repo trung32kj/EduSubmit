@@ -81,6 +81,15 @@ Trần Tường Vy"></textarea>
         </label>
       </div>
     </header>
+
+    <!-- Thanh hành động: chỉ hiện khi đã chọn ít nhất một bạn. -->
+    <div id="bulk-bar" class="bulk-bar" hidden role="region" aria-label="Hành động với các bạn đã chọn">
+      <strong id="bulk-count"></strong>
+      <div class="grow"></div>
+      <button class="small ghost" id="bulk-clear">Bỏ chọn</button>
+      <button class="small danger" id="bulk-delete">Xoá các bạn đã chọn</button>
+    </div>
+
     <div id="list"></div>
   </div>
 </main>

@@ -1,8 +1,9 @@
 import {
-  api, el, $, clear, setAlert, renderTopbar, formatTime, formatBytes,
+  api, el, $, clear, mount, setAlert, renderTopbar, formatTime, formatBytes,
   relativeDeadline, statusBadge, copyText, toast, withBusy, debounce,
   confirmDialog, pickStudentDialog, openLightbox,
 } from '/js/app.js';
+import { openZipDialog } from '/js/zip-dialog.js';
 
 renderTopbar('/admin.html');
 
@@ -24,7 +25,7 @@ const imageCache = new Map();
 const noteDrafts = new Map();
 
 $('#bulk-link').href = `/bulk.html?id=${id}`;
-$('#zip-link').href = `/api/admin/assignments/${id}/export.zip`;
+$('#zip-btn').addEventListener('click', () => openZipDialog(id, data?.assignment?.title));
 
 async function load() {
   try {
@@ -48,7 +49,9 @@ function renderMeta() {
   const dl = relativeDeadline(a.dueAt);
   const host = clear($('#meta'));
 
-  host.append(
+  // mount() thay .append(): .append() gốc in ra chữ "null" khi nhận null, còn
+  // description/className thì có thể rỗng.
+  mount(host,
     el('div', { class: 'row small' },
       a.isClosed
         ? el('span', { class: 'badge missing', text: 'Đã đóng' })
