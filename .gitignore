@@ -16,3 +16,7 @@ node_modules/
 
 .DS_Store
 Thumbs.db
+
+# File Excel điểm/danh sách học sinh — dữ liệu cá nhân, không commit.
+*.xlsx
+*.xls
