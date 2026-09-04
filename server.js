@@ -15,6 +15,7 @@ import {
   SqliteStore,
   requireAdmin,
   authenticate,
+  hashPasswordSync,
   SECRET_SID,
 } from './src/auth.js';
 import { securityHeaders, csrfGuard } from './src/http-guard.js';
@@ -187,10 +188,48 @@ app.use((err, req, res, next) => {
 
 export { app };
 
+/**
+ * Tạo admin đầu tiên từ biến môi trường.
+ *
+ * Cần cho việc deploy lên hosting: ở đó không mở terminal để chạy
+ * `npm run create-admin` được, mà không có admin thì không đăng nhập được.
+ *
+ * CHỈ tạo khi CHƯA có admin nào — nên biến này không thể dùng để đổi mật khẩu
+ * hay chiếm tài khoản có sẵn. Sau khi tạo xong nên xoá biến khỏi hosting.
+ */
+function bootstrapAdmin() {
+  const username = (process.env.ADMIN_USERNAME ?? '').trim();
+  const password = process.env.ADMIN_PASSWORD ?? '';
+  if (!username || !password) return;
+
+  if (get('SELECT id FROM admins LIMIT 1')) {
+    console.log('  (Đã có tài khoản admin — bỏ qua ADMIN_USERNAME/ADMIN_PASSWORD.)');
+    return;
+  }
+  if (password.length < 8) {
+    console.error('  ADMIN_PASSWORD phải từ 8 ký tự. Chưa tạo tài khoản nào.');
+    return;
+  }
+
+  const now = Date.now();
+  run(
+    'INSERT INTO admins (username, password_hash, password_changed_at, created_at) VALUES (?, ?, ?, ?)',
+    username,
+    hashPasswordSync(password),
+    now,
+    now,
+  );
+  console.log(`  Đã tạo tài khoản admin "${username}" từ biến môi trường.`);
+  console.log('  Nên xoá ADMIN_PASSWORD khỏi cấu hình hosting sau khi đăng nhập được.');
+}
+
 // Chỉ tự listen khi chạy trực tiếp; test import app rồi tự listen(0).
 if (process.env.NODE_ENV !== 'test') {
+  bootstrapAdmin();
+
   // Bind 0.0.0.0 để điện thoại trong cùng Wi-Fi vào được (lần đầu Windows
   // Firewall sẽ hỏi -> phải bấm Allow, không thì máy khác không kết nối được).
+  // Trên hosting, đây cũng là điều kiện để healthcheck của nền tảng tới được.
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n  Bài tập ảnh chứng minh`);
     console.log(`  Admin:    http://localhost:${PORT}/admin`);

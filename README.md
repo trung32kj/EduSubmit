@@ -196,6 +196,79 @@ Mọi thứ chạy trên máy người dùng đều can thiệp được — t�
 `curl`, dùng trình duyệt khác. Vì vậy mọi kiểm tra quan trọng đều nằm ở server
 (hạn nộp, lớp, hạn mức, phát hiện ảnh trùng), và đó là chỗ duy nhất đáng đặt niềm tin.
 
+## Deploy lên hosting (domain riêng)
+
+Ví dụ với Railway và domain `alotrle.xyz`. Các nền tảng khác (Render, Fly.io) làm
+tương tự — điểm quan trọng là cả ba việc dưới đây.
+
+### 1. Tạo service từ GitHub
+
+Vào [railway.com](https://railway.com) → **New Project** → **Deploy from GitHub repo**
+→ chọn repo này. Railway đọc [railway.toml](railway.toml) nên không cần cấu hình build.
+
+### 2. Tạo volume — bắt buộc, làm trước khi deploy
+
+Đây là bước dễ bỏ sót nhất và **hậu quả là mất sạch dữ liệu**. Container của
+hosting không giữ file: mỗi lần deploy lại, `data/app.db` và toàn bộ ảnh học sinh
+biến mất. Volume là ổ đĩa lưu lâu dài.
+
+Trong project → chuột phải canvas → **Volume** → mount vào `/app/data`.
+
+Railway đặt code ở `/app`, nên volume phải mount vào `/app/data` để khớp với
+đường dẫn `./data` mà app dùng. Mount vào `/data` là không ăn.
+
+### 3. Đặt biến môi trường
+
+Service → **Variables**:
+
+| Biến | Giá trị | Vì sao cần |
+|---|---|---|
+| `APP_DATA` | `/app/data` | Trỏ dữ liệu vào volume |
+| `BASE_URL` | `https://alotrle.xyz` | QR chứa domain thật; cookie tự bật cờ `secure` |
+| `TRUST_PROXY` | `1` | Lấy đúng IP học viên, không dồn hết về IP của proxy |
+| `SESSION_SECRET` | một chuỗi dài ngẫu nhiên | Giữ nguyên qua các lần deploy để không đăng xuất |
+| `ADMIN_USERNAME` | tên đăng nhập bạn muốn | Tạo tài khoản đầu tiên (hosting không có terminal) |
+| `ADMIN_PASSWORD` | mật khẩu ≥ 8 ký tự | Xoá biến này sau khi đăng nhập được |
+
+`ADMIN_USERNAME` / `ADMIN_PASSWORD` **chỉ có tác dụng khi chưa có admin nào**, nên
+không dùng được để đổi mật khẩu hay chiếm tài khoản có sẵn.
+
+### 4. Nối domain
+
+Service → **Settings** → **Networking** → **+ Custom Domain** → nhập `alotrle.xyz`.
+Railway đưa **hai** bản ghi: một `CNAME` và một `TXT`.
+
+Vào nhà cung cấp DNS của bạn (`alotrle.xyz` đang dùng nameserver `nicnames.com`)
+và thêm **cả hai**. Thiếu `TXT` thì domain vẫn trả 404 dù `CNAME` đã trỏ đúng —
+Railway dùng `TXT` để xác minh bạn sở hữu domain.
+
+`alotrle.xyz` là domain gốc (apex) nên `CNAME` ở gốc cần nhà cung cấp hỗ trợ
+CNAME flattening / ALIAS / ANAME. Nếu nicnames không có, chuyển DNS sang
+Cloudflare (miễn phí) rồi tạo CNAME ở đó.
+
+Chờ DNS lan (thường vài phút, có thể tới 72 giờ). Railway tự cấp SSL.
+
+### 5. Kiểm tra
+
+```bash
+curl -i https://alotrle.xyz/healthz
+```
+
+Ra `200 OK` là xong. Đăng nhập ở `https://alotrle.xyz/admin`, rồi xoá
+`ADMIN_PASSWORD` khỏi Variables.
+
+### Lưu ý
+
+- **Trong repo có file `CNAME`** — đó là của GitHub Pages, không liên quan tới
+  Railway. Nếu bạn đã tắt GitHub Pages thì xoá file đó đi cho đỡ nhầm.
+- Ảnh nằm trên volume nên **`npm run backup` chạy trên hosting không tiện**. Dùng
+  nút *Tải ảnh về (ZIP)* trong web để lấy ảnh, và `railway volume files download`
+  để lấy `app.db`.
+- Volume có giới hạn dung lượng theo gói. Đặt `MAX_TOTAL_MB` thấp hơn dung lượng
+  volume để app từ chối nhận ảnh trước khi ổ đĩa đầy.
+- Redeploy service có volume sẽ **có một khoảng ngắn ngừng phục vụ** — Railway
+  không cho hai deploy cùng mount một volume, tránh hỏng dữ liệu.
+
 ## Sao lưu
 
 ```bash
@@ -248,5 +321,6 @@ chặn được `script-src 'self'`.
 | `HTTPS` | — | Đặt `1` để bật cookie `secure` khi `BASE_URL` không phải https |
 | `SESSION_SECRET` | tự sinh, lưu vào DB | Khoá ký cookie |
 | `MAX_TOTAL_MB` | `5120` | Trần dung lượng thư mục ảnh |
-| `APP_DATA` | `./data` | Thư mục dữ liệu |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | — | Tạo admin đầu tiên khi deploy lên hosting; chỉ có tác dụng khi chưa có admin nào |
+| `APP_DATA` | `./data` | Thư mục dữ liệu (trên hosting: trỏ vào volume) |
 | `APP_DB` / `APP_UPLOADS` | trong `APP_DATA` | Đường dẫn riêng cho DB / ảnh |
