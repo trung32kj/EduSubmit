@@ -140,6 +140,17 @@ app.get('/api/admin/me', (req, res) => {
 
 // ------------------------------------------------------------------ routes
 
+/**
+ * Healthcheck cho nền tảng hosting (Railway, Render, Fly…).
+ *
+ * KHÔNG trỏ healthcheck vào `/`: `/` trả 302 sang /admin, mà nhiều nền tảng chỉ
+ * coi 2xx là khoẻ nên deploy sẽ bị đánh là fail. Endpoint này trả 200 thuần,
+ * không cần đăng nhập, không đụng vào DB nặng.
+ */
+app.get('/healthz', (req, res) => {
+  res.type('text/plain').send('OK');
+});
+
 app.use('/api/public', publicRouter);
 app.use('/api/admin', requireAdmin, adminRouter);
 app.get('/files/:imageId', requireAdmin, serveImage);

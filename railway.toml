@@ -3,7 +3,9 @@ builder = "nixpacks"
 
 [deploy]
 startCommand = "npm start"
-healthcheckPath = "/"
-healthcheckTimeout = 30
+# KHÔNG dùng "/": nó trả 302 sang /admin, mà Railway chỉ coi 2xx là khoẻ nên
+# deploy sẽ bị đánh là fail. /healthz trả 200 thuần.
+healthcheckPath = "/healthz"
+healthcheckTimeout = 60
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3

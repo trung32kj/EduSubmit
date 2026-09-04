@@ -3,6 +3,11 @@
 # cùng hash mật khẩu admin. Đẩy lên rồi thì xoá cũng vẫn còn trong lịch sử git.
 data/
 
+# File nén để tải lên hosting bằng tay. Thường chứa cả data/ nên tuyệt đối không commit.
+*.zip
+*.tar
+*.tar.gz
+
 node_modules/
 *.log
 .env
