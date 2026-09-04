@@ -69,6 +69,8 @@ export function assignmentPublic(a) {
     dueAt: a.due_at,
     isClosed: !!a.is_closed,
     isOpen: isOpen(a),
+    // Chỉ nói CÓ hay KHÔNG cần PIN, không bao giờ trả giá trị PIN ra ngoài.
+    needsPin: !!a.pin,
   };
 }
 

@@ -85,9 +85,12 @@ tạo ra chữ mờ mà người mắt kém không đọc được.
 
 ## Việc thường làm
 
-**Tạo lớp và nhập danh sách.** Mỗi bài tập thuộc một lớp, và học viên chỉ thấy tên
-bạn cùng lớp mình khi nộp bài. Dán tên vào ô, mỗi dòng một bạn. Hai bạn trùng tên
-là chuyện bình thường — thêm ghi chú sau dấu phẩy để phân biệt:
+**Tạo lớp trước, rồi mới tạo bài tập.** Bài tập **bắt buộc** thuộc một lớp — không
+có lớp thì bảng tổng hợp trống và không học viên nào nộp được. Học viên chỉ thấy tên
+bạn cùng lớp mình khi nộp bài.
+
+Nhập danh sách: dán tên vào ô, mỗi dòng một bạn. Hai bạn trùng tên là chuyện bình
+thường — thêm ghi chú sau dấu phẩy để phân biệt:
 
 ```
 Nguyễn Văn A, STT 01
@@ -131,17 +134,41 @@ mình (có gợi ý, tối thiểu 2 chữ), chọn ảnh, nộp. Không cần t
 
 Quá hạn là học viên không nộp được nữa, nhưng bạn vẫn upload hộ được qua *Tải ảnh lên*.
 
-**Để điện thoại quét QR vào được:** điện thoại và máy này phải cùng mạng Wi-Fi, và
-QR phải chứa IP LAN chứ không phải `localhost` (điện thoại hiểu `localhost` là
-chính nó). Cửa sổ *Link & QR* hiện sẵn link LAN đúng để bạn kiểm tra. Hai lưu ý:
+### Mã PIN
 
-- Lần đầu chạy, Windows Firewall sẽ hỏi — bấm **Allow** cho mạng Private.
-- IP LAN đổi theo DHCP, nên QR đã in có thể hết hiệu lực. Đặt `BASE_URL` nếu bạn
-  có địa chỉ cố định:
+Bật PIN cho bài tập nào cần: nút *Bật PIN* trong cửa sổ *Link & QR*, hoặc tick khi
+tạo bài tập. Hệ thống sinh mã 4 số, bạn đọc cho lớp. Không có mã thì **không nộp
+được và cũng không tra được tên bạn nào trong lớp** — danh sách lớp chính là thứ
+PIN cần bảo vệ. Nhập sai nhiều lần thì bị khoá tạm, nên không dò được 10.000 mã.
+
+Học viên chỉ nhập PIN một lần cho mỗi bài tập; nộp thêm ảnh sau đó không phải gõ lại.
+
+Nên bật PIN nếu link đi ra ngoài lớp — link chỉ là một chuỗi, ai có nó là nộp được.
+
+### Cho học viên nộp từ bất kỳ đâu
+
+Mặc định web chỉ chạy trong mạng nội bộ: điện thoại phải cùng Wi-Fi với máy này,
+và mã QR chứa IP LAN (IP đổi theo DHCP nên QR đã in có thể hết hiệu lực).
+
+Muốn học viên nộp từ nhà, cần một địa chỉ công khai — domain riêng, hoặc một tunnel
+(Cloudflare Tunnel, ngrok, Tailscale Funnel…). Sau khi có địa chỉ đó, chạy:
 
 ```bash
-BASE_URL=http://192.168.1.40:3000 npm start
+BASE_URL=https://baitap.example.com TRUST_PROXY=1 npm start
 ```
+
+Hai biến này làm ba việc:
+
+| Biến | Việc |
+|---|---|
+| `BASE_URL` | Mã QR chứa địa chỉ công khai thay vì IP LAN; giao diện ngừng hiện gợi ý "phải cùng Wi-Fi"; cookie tự bật cờ `secure` nếu là `https://` |
+| `TRUST_PROXY=1` | Lấy đúng IP học viên từ header của proxy, để giới hạn tần suất và dấu vết bài nộp không bị dồn hết về IP của proxy |
+
+**Đừng đặt `TRUST_PROXY` khi chạy trực tiếp** — khi bật, server tin header
+`X-Forwarded-For`, nên không có proxy thì client tự khai IP giả để lách giới hạn.
+
+Khi ra internet thì **nên bật PIN** cho mọi bài tập, và nhớ rằng máy phải bật để
+web chạy. Muốn tắt máy vẫn nộp được thì phải deploy lên VPS.
 
 ## Bảo mật
 
@@ -156,11 +183,13 @@ Những gì đã có:
 - Ảnh kiểm bằng magic bytes, phục vụ với `nosniff` + CSP sandbox, nằm ngoài thư mục web.
 - Học viên chỉ tìm được tên trong lớp của bài tập, cần tối thiểu 2 chữ, có giới
   hạn tần suất — để không ai dò được cả danh sách lớp.
+- Mã PIN cho từng bài tập: không có mã thì không nộp được **và không tra được tên**;
+  nhập sai nhiều lần bị khoá tạm.
 - Một trình duyệt chỉ nộp thay được tối đa 2 bạn cho mỗi bài tập.
 - Bài đã duyệt *Đạt* không bị kéo về *Chờ duyệt* khi có người nộp thêm.
 
-Còn lại: chạy HTTP trong LAN nên ai bắt được gói tin trong mạng vẫn đọc được
-cookie. Khi có HTTPS thì đặt `HTTPS=1` để bật cờ `secure` cho cookie.
+Còn lại: chạy HTTP trong LAN thì ai bắt được gói tin trong mạng vẫn đọc được
+cookie. Chạy qua HTTPS (domain hoặc tunnel) thì cookie tự bật cờ `secure`.
 
 Về việc chặn Developer Tools / F12: không làm được, và cũng không nên tin vào đó.
 Mọi thứ chạy trên máy người dùng đều can thiệp được — tắt JS, gọi thẳng API bằng
@@ -183,7 +212,7 @@ mật khẩu và toàn bộ ảnh của học viên** — giữ nó cẩn thận
 npm test
 ```
 
-85 test. Dùng database tạm trong thư mục temp của hệ thống, không đụng vào
+93 test. Dùng database tạm trong thư mục temp của hệ thống, không đụng vào
 `data/app.db`.
 
 ## Cấu trúc
@@ -214,9 +243,9 @@ chặn được `script-src 'self'`.
 | Biến | Mặc định | Việc |
 |---|---|---|
 | `PORT` | `3000` | Cổng |
-| `BASE_URL` | tự đoán từ request | URL nhúng vào QR |
-| `HTTPS` | — | Đặt `1` khi chạy sau HTTPS để bật cookie `secure` |
-| `TRUST_PROXY` | — | Chỉ đặt khi thật sự có reverse proxy |
+| `BASE_URL` | tự đoán từ request | Địa chỉ công khai: nhúng vào QR, và bật cờ cookie `secure` nếu là `https://` |
+| `TRUST_PROXY` | — | Đặt `1` khi có proxy/tunnel, để lấy đúng IP học viên. Đừng đặt khi chạy trực tiếp |
+| `HTTPS` | — | Đặt `1` để bật cookie `secure` khi `BASE_URL` không phải https |
 | `SESSION_SECRET` | tự sinh, lưu vào DB | Khoá ký cookie |
 | `MAX_TOTAL_MB` | `5120` | Trần dung lượng thư mục ảnh |
 | `APP_DATA` | `./data` | Thư mục dữ liệu |

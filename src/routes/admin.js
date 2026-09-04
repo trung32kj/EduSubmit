@@ -381,11 +381,29 @@ function assignmentRow(a) {
     slug: a.slug,
     classId: a.class_id ?? null,
     className: a.class_name ?? null,
+    // Admin ĐƯỢC xem PIN (để đọc cho lớp). API công khai thì chỉ trả needsPin.
+    pin: a.pin ?? null,
     createdAt: a.created_at,
     submittedCount: a.submitted_count ?? undefined,
     pendingCount: a.pending_count ?? undefined,
     studentCount: a.student_count ?? undefined,
   };
+}
+
+/** Mã PIN 4 số. Đủ để cản người ngoài lớp, đủ ngắn để đọc lên bảng. */
+function newPin() {
+  // randomInt để không lệch phân bố như % 10000.
+  return String(crypto.randomInt(0, 10000)).padStart(4, '0');
+}
+
+/** Đọc tham số pin từ body: true = bật (tự sinh), false/null = tắt, chuỗi 4-6 số = đặt tay. */
+function parsePin(value) {
+  if (value === undefined) return undefined;
+  if (value === true) return newPin();
+  if (value === false || value === null || value === '') return null;
+  const s = str(value, 10)?.trim() ?? '';
+  if (!/^\d{4,6}$/.test(s)) throw badRequest('Mã PIN phải là 4–6 chữ số.');
+  return s;
 }
 
 adminRouter.get('/assignments', (req, res) => {
@@ -411,16 +429,28 @@ adminRouter.post('/assignments', (req, res) => {
   const description = str(req.body?.description, 5000) ?? '';
   // epoch ms; datetime-local của trình duyệt được đổi sang ms ở phía client.
   const dueAt = parseTimestamp(req.body?.dueAt);
-  const classId = classScope(req.body?.classId) ?? null;
+
+  // BẮT BUỘC có lớp. Bài tập không gán lớp thì bảng tổng hợp luôn trống và không
+  // học viên nào nộp được — nó hỏng vĩnh viễn chứ không phải "chưa cấu hình".
+  const classId = classScope(req.body?.classId);
+  if (!classId) {
+    const hasClass = get('SELECT id FROM classes WHERE is_active = 1');
+    throw badRequest(
+      hasClass
+        ? 'Chọn lớp cho bài tập này. Không có lớp thì không học viên nào nộp được.'
+        : 'Chưa có lớp nào. Vào trang "Danh sách lớp" tạo lớp trước rồi mới tạo bài tập.',
+    );
+  }
 
   const row = getReturning(
-    `INSERT INTO assignments (title, description, due_at, is_closed, slug, class_id, created_at)
-     VALUES (?, ?, ?, 0, ?, ?, ?) RETURNING *`,
+    `INSERT INTO assignments (title, description, due_at, is_closed, slug, class_id, pin, created_at)
+     VALUES (?, ?, ?, 0, ?, ?, ?, ?) RETURNING *`,
     title,
     description,
     dueAt,
     newSlug(),
     classId,
+    parsePin(req.body?.pin) ?? null,
     Date.now(),
   );
   res.status(201).json({ assignment: assignmentRow(row) });
@@ -434,16 +464,25 @@ adminRouter.patch('/assignments/:id', (req, res) => {
 
   const title = req.body?.title === undefined ? null : displayName(str(req.body.title, 200) ?? '');
   if (title !== null && !title) throw badRequest('Tên bài tập không được để trống');
-  const classId = req.body?.classId === undefined ? undefined : classScope(req.body.classId) ?? null;
+
+  // Sửa bài tập cũng không được bỏ lớp: bỏ lớp là làm bài tập đó hỏng hẳn.
+  let classId = undefined;
+  if (req.body?.classId !== undefined) {
+    classId = classScope(req.body.classId);
+    if (!classId) throw badRequest('Bài tập phải thuộc một lớp.');
+  }
+
+  const pin = parsePin(req.body?.pin);
 
   const row = getReturning(
-    `UPDATE assignments SET title = ?, description = ?, due_at = ?, is_closed = ?, class_id = ?
+    `UPDATE assignments SET title = ?, description = ?, due_at = ?, is_closed = ?, class_id = ?, pin = ?
      WHERE id = ? RETURNING *`,
     title ?? existing.title,
     req.body?.description === undefined ? existing.description : (str(req.body.description, 5000) ?? ''),
     req.body?.dueAt === undefined ? existing.due_at : parseTimestamp(req.body.dueAt),
     req.body?.isClosed === undefined ? existing.is_closed : !!req.body.isClosed,
     classId === undefined ? existing.class_id : classId,
+    pin === undefined ? existing.pin : pin,
     id,
   );
   res.json({ assignment: assignmentRow(row) });
@@ -956,7 +995,7 @@ adminRouter.get('/assignments/:id/qr.png', async (req, res) => {
 adminRouter.get('/assignments/:id/link', async (req, res) => {
   const id = intId(req.params.id);
   if (!id) throw badRequest('id không hợp lệ');
-  const a = get('SELECT slug FROM assignments WHERE id = ?', id);
+  const a = get('SELECT slug, pin FROM assignments WHERE id = ?', id);
   if (!a) throw notFound('Không có bài tập này');
 
   const os = await import('node:os');
@@ -966,12 +1005,34 @@ adminRouter.get('/assignments/:id/link', async (req, res) => {
     .map((n) => n.address);
 
   const port = process.env.PORT || 3000;
+  const fromEnv = process.env.BASE_URL ?? null;
   res.json({
     slug: a.slug,
     url: `${baseUrl(req)}/s/${a.slug}`,
-    baseUrlFromEnv: process.env.BASE_URL ?? null,
-    lanUrls: lanIps.map((ip) => `http://${ip}:${port}/s/${a.slug}`),
+    baseUrlFromEnv: fromEnv,
+    // Có BASE_URL nghĩa là đang chạy qua domain/tunnel: học viên nộp từ đâu cũng
+    // được, không cần cùng Wi-Fi, nên đừng bắt họ đọc gợi ý IP LAN.
+    publicUrl: fromEnv ? `${fromEnv.replace(/\/+$/, '')}/s/${a.slug}` : null,
+    lanUrls: fromEnv ? [] : lanIps.map((ip) => `http://${ip}:${port}/s/${a.slug}`),
+    pin: a.pin ?? null,
   });
+});
+
+/** Bật / tắt / đổi mã PIN của bài tập. */
+adminRouter.post('/assignments/:id/pin', (req, res) => {
+  const id = intId(req.params.id);
+  if (!id) throw badRequest('id không hợp lệ');
+  if (!get('SELECT id FROM assignments WHERE id = ?', id)) throw notFound('Không có bài tập này');
+
+  const action = str(req.body?.action, 20);
+  let pin;
+  if (action === 'off') pin = null;
+  else if (action === 'set') pin = parsePin(req.body?.pin) ?? newPin();
+  else pin = newPin(); // 'on' hoặc không nói gì -> sinh mã mới
+  if (pin === undefined) pin = newPin();
+
+  const row = getReturning('UPDATE assignments SET pin = ? WHERE id = ? RETURNING *', pin, id);
+  res.json({ assignment: assignmentRow(row) });
 });
 
 /** Tải toàn bộ ảnh của 1 bài tập, tên file trong ZIP là tên học viên. */

@@ -162,9 +162,10 @@ test('latest=1 bỏ ảnh của các lần nộp trước', async () => {
 });
 
 test('không có ảnh nào khớp thì báo 404 rõ ràng, không trả ZIP rỗng', async () => {
-  // Chưa ai ở trạng thái pending sau khi đã duyệt hết? Bình vẫn pending, nên tạo
-  // một bài tập mới hoàn toàn trống để kiểm.
-  const empty = (await post('/api/admin/assignments', { title: 'Chưa ai nộp' })).assignment;
+  // Bài tập bắt buộc thuộc một lớp, nên tạo lớp riêng cho ca "chưa ai nộp".
+  const cls = (await post('/api/admin/classes', { name: 'Lớp trống' })).class;
+  const empty = (await post('/api/admin/assignments', { title: 'Chưa ai nộp', classId: cls.id }))
+    .assignment;
   const res = await fetch(base + `/api/admin/assignments/${empty.id}/export.zip`, { headers: H() });
   assert.equal(res.status, 404);
   const body = await res.json();

@@ -58,8 +58,58 @@ function renderHeader() {
       : 'Đã quá hạn nộp bài. Liên hệ giáo viên để được nộp bù.';
     return;
   }
+
+  // Có PIN thì hỏi PIN trước. Không cho thấy ô gõ tên ngay vì gợi ý tên chính là
+  // danh sách lớp — đó là thứ PIN cần bảo vệ.
+  if (assignment.needsPin) {
+    $('#pin-form').hidden = false;
+    $('#pin').focus();
+    setupPinForm();
+    return;
+  }
+
   $('#form').hidden = false;
   setupForm();
+}
+
+/** Mã PIN đã xác nhận, gửi kèm mọi request sau đó. */
+let pin = '';
+
+function setupPinForm() {
+  $('#pin-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('#pin-submit');
+    const value = $('#pin').value.trim();
+    setAlert($('#pin-alert'), '');
+    if (!value) {
+      setAlert($('#pin-alert'), 'Nhập mã PIN.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Đang kiểm tra…';
+    try {
+      const res = await fetch(`/api/public/a/${encodeURIComponent(slug)}/pin`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ pin: value }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error ?? httpMessage(res.status));
+
+      pin = value;
+      $('#pin-form').hidden = true;
+      $('#form').hidden = false;
+      setupForm();
+      $('#name').focus();
+    } catch (err) {
+      setAlert($('#pin-alert'), err.message);
+      $('#pin').select();
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Tiếp tục';
+    }
+  });
 }
 
 function setupForm() {
@@ -67,8 +117,12 @@ function setupForm() {
     // Server yêu cầu tối thiểu 2 ký tự (1 ký tự thì chỉ cần lặp bảng chữ cái là
     // dò được cả danh sách lớp).
     minChars: 2,
-    search: async (q) =>
-      (await get(`/api/public/a/${encodeURIComponent(slug)}/students?q=${encodeURIComponent(q)}`)).students,
+    search: async (q) => {
+      const qs = new URLSearchParams({ q });
+      // PIN phải gửi kèm: server chặn cả đường tra tên khi bài tập có PIN.
+      if (pin) qs.set('pin', pin);
+      return (await get(`/api/public/a/${encodeURIComponent(slug)}/students?${qs}`)).students;
+    },
     onPick: (s) => {
       picked = s;
       const box = $('#picked');
@@ -198,6 +252,9 @@ function uploadBatch(form, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `/api/public/a/${encodeURIComponent(slug)}/submit`);
+    // Gửi PIN qua header, không qua form: server kiểm PIN TRƯỚC khi bóc multipart
+    // (để request sai PIN không nạp cả trăm MB ảnh vào RAM), lúc đó body chưa đọc được.
+    if (pin) xhr.setRequestHeader('x-pin', pin);
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) onProgress(e.loaded / e.total);
     });

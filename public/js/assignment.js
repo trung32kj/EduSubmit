@@ -59,6 +59,7 @@ function renderMeta() {
           ? el('span', { class: 'badge approved', text: 'Đang nhận bài' })
           : el('span', { class: 'badge late long', text: 'Hết hạn, không nhận bài mới' }),
       a.className ? el('span', { class: 'badge info', text: a.className }) : null,
+      a.pin ? el('span', { class: 'badge info', text: `PIN ${a.pin}` }) : null,
       el('span', { class: 'muted' }, a.dueAt ? `Hạn: ${formatTime(a.dueAt)} · ${dl.text}` : 'Không có hạn nộp'),
     ),
     a.description ? el('p', { class: 'small muted', style: 'white-space:pre-wrap;margin:0', text: a.description }) : null,
@@ -97,7 +98,17 @@ function render() {
   const host = clear($('#list'));
 
   if (!rows.length) {
-    host.append(el('div', { class: 'empty', text: data.students.length ? 'Không có bạn nào khớp bộ lọc.' : 'Danh sách lớp còn trống.' }));
+    // Nói rõ vì sao trống và phải làm gì, thay vì chỉ "Danh sách lớp còn trống".
+    const a = data.assignment;
+    mount(host, el('div', { class: 'empty stack' },
+      data.students.length
+        ? el('p', { text: 'Không có bạn nào khớp bộ lọc.' })
+        : a.classId
+          ? el('p', {}, `Lớp "${a.className}" chưa có học viên nào. `,
+              el('a', { href: '/students.html', text: 'Thêm học viên vào lớp' }), ' rồi quay lại đây.')
+          : el('p', {}, 'Bài tập này chưa thuộc lớp nào nên không có danh sách học viên. ',
+              el('button', { class: 'small primary', text: 'Gán lớp cho bài tập', onclick: assignClass })),
+    ));
     return;
   }
 
@@ -289,7 +300,7 @@ async function removeImage(btn, img, s) {
     title: 'Xoá ảnh này?',
     message: `Ảnh của ${s.name}. Không hoàn lại được.`,
     confirmLabel: 'Xoá ảnh',
-    preview: img.url,
+    previewImage: img.url,
   });
   if (!ok) return;
   await withBusy(btn, '…', async () => {
@@ -375,20 +386,78 @@ $('#link-btn').addEventListener('click', (e) =>
     $('#qr').src = qrUrl;
     $('#link-input').value = info.url;
     $('#qr-zoom').onclick = () => openLightbox(qrUrl, info.url);
+    renderPin(info.pin);
 
     const hint = $('#lan-hint');
-    if (info.url.includes('localhost') || info.url.includes('127.0.0.1')) {
+    if (info.publicUrl) {
+      // Có BASE_URL nghĩa là đang chạy qua domain/tunnel: nộp từ đâu cũng được.
+      hint.className = 'alert ok small';
+      hint.textContent = 'Link này mở được từ bất kỳ đâu, không cần cùng Wi-Fi.';
+    } else if (info.url.includes('localhost') || info.url.includes('127.0.0.1')) {
       hint.className = 'alert warn small';
       hint.textContent = info.lanUrls.length
         ? `Điện thoại KHÔNG mở được link localhost. Dùng link trong cùng Wi-Fi: ${info.lanUrls.join(' hoặc ')}`
         : 'Điện thoại không mở được link localhost. Cần chạy server ở địa chỉ mà điện thoại truy cập được.';
     } else {
       hint.className = 'alert info small';
-      hint.textContent = 'Điện thoại phải ở cùng mạng Wi-Fi với máy này. Lần đầu Windows Firewall sẽ hỏi — bấm Allow.';
+      hint.textContent =
+        'Link này chỉ dùng được trong cùng mạng Wi-Fi. Muốn học viên nộp từ nhà thì ' +
+        'chạy server qua domain hoặc tunnel rồi đặt biến BASE_URL — xem README.';
     }
     $('#link-dlg').showModal();
   }),
 );
+
+/** Hiện mã PIN và các nút bật/tắt/đổi mã. */
+function renderPin(pin) {
+  const box = $('#pin-value');
+  const toggle = $('#pin-toggle');
+  const renew = $('#pin-new');
+  const hint = $('#pin-hint');
+
+  if (pin) {
+    box.textContent = pin;
+    box.hidden = false;
+    toggle.textContent = 'Tắt PIN';
+    renew.hidden = false;
+    hint.textContent = 'Đọc mã này cho lớp. Không có mã thì không nộp được, dù có link.';
+  } else {
+    box.textContent = '';
+    box.hidden = true;
+    toggle.textContent = 'Bật PIN';
+    renew.hidden = true;
+    hint.textContent = 'Chưa đặt PIN — ai có link cũng nộp được. Nên bật nếu link đi ra ngoài lớp.';
+  }
+
+  // renderPin phải chạy SAU khi withBusy kết thúc: withBusy lưu nhãn nút lúc bắt
+  // đầu rồi khôi phục ở finally, nên nếu đổi nhãn bên trong thì nó bị ghi đè lại.
+  toggle.onclick = async (e) => {
+    const r = await withBusy(e.currentTarget, '…', () =>
+      api('POST', `/api/admin/assignments/${id}/pin`, { action: pin ? 'off' : 'on' }),
+    );
+    if (!r) return;
+    renderPin(r.assignment.pin);
+    toast(r.assignment.pin ? `Đã bật PIN: ${r.assignment.pin}` : 'Đã tắt PIN.');
+    await load();
+  };
+
+  renew.onclick = async (e) => {
+    const ok = await confirmDialog({
+      title: 'Đổi mã PIN?',
+      message: 'Mã cũ sẽ không dùng được nữa. Bạn phải đọc mã mới cho lớp.',
+      confirmLabel: 'Đổi mã',
+      danger: false,
+    });
+    if (!ok) return;
+    const r = await withBusy(e.currentTarget, '…', () =>
+      api('POST', `/api/admin/assignments/${id}/pin`, { action: 'on' }),
+    );
+    if (!r) return;
+    renderPin(r.assignment.pin);
+    toast(`Mã PIN mới: ${r.assignment.pin}`);
+    await load();
+  };
+}
 
 $('#link-input').addEventListener('click', (e) => e.target.select());
 
@@ -400,5 +469,45 @@ $('#link-close').addEventListener('click', () => $('#link-dlg').close());
 $('#link-dlg').addEventListener('click', (e) => {
   if (e.target === $('#link-dlg')) $('#link-dlg').close();
 });
+
+/**
+ * Gán lớp cho bài tập chưa có lớp.
+ *
+ * Bài tập tạo trước khi có ràng buộc "phải chọn lớp" có thể còn class_id rỗng.
+ * Không có đường sửa thì nó hỏng vĩnh viễn: bảng tổng hợp trống và không học viên
+ * nào nộp được.
+ */
+async function assignClass() {
+  let list;
+  try {
+    list = (await api('GET', '/api/admin/classes')).classes.filter((c) => c.isActive);
+  } catch (err) {
+    return toast(err.message, 'err');
+  }
+  if (!list.length) {
+    return toast('Chưa có lớp nào. Vào trang "Danh sách lớp" tạo lớp trước.', 'err');
+  }
+
+  const sel = el('select', {},
+    list.map((c) => el('option', { value: String(c.id), text: `${c.name} (${c.studentCount} học viên)` })),
+  );
+
+  const ok = await confirmDialog({
+    title: 'Gán lớp cho bài tập này',
+    message: 'Chọn lớp — bảng tổng hợp sẽ hiện danh sách học viên của lớp đó.',
+    confirmLabel: 'Gán lớp',
+    danger: false,
+    extra: sel,
+  });
+  if (!ok) return;
+
+  try {
+    await api('PATCH', `/api/admin/assignments/${id}`, { classId: sel.value });
+    toast('Đã gán lớp.');
+    await load();
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+}
 
 load();

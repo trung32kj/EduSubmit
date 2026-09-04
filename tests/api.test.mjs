@@ -31,6 +31,8 @@ const PNG = Buffer.concat([
 ]);
 const NOT_IMAGE = Buffer.from('#!/bin/sh\necho khong phai anh\n');
 
+let defaultClassId;
+
 before(async () => {
   createAdmin('admin', 'matkhau123');
   server = app.listen(0);
@@ -44,6 +46,11 @@ before(async () => {
   });
   assert.equal(res.status, 200);
   cookie = res.headers.getSetCookie()[0].split(';')[0];
+
+  // Bài tập BẮT BUỘC thuộc một lớp, nên mọi test cần một lớp sẵn.
+  const cls = await api('POST', '/api/admin/classes', { name: 'Lớp test' });
+  assert.equal(cls.status, 201, cls.text);
+  defaultClassId = cls.body.class.id;
 });
 
 after(() => {
@@ -93,13 +100,17 @@ async function postForm(url, form, withCookie = true) {
 const file = (buf, name) => new File([buf], name, { type: 'image/jpeg' });
 
 async function makeAssignment(overrides = {}) {
-  const r = await api('POST', '/api/admin/assignments', { title: 'Bài tập test', ...overrides });
+  const r = await api('POST', '/api/admin/assignments', {
+    title: 'Bài tập test',
+    classId: defaultClassId,
+    ...overrides,
+  });
   assert.equal(r.status, 201, r.text);
   return r.body.assignment;
 }
 
 async function importStudents(text) {
-  const r = await api('POST', '/api/admin/students/import', { text });
+  const r = await api('POST', '/api/admin/students/import', { text, classId: defaultClassId });
   assert.equal(r.status, 200, r.text);
   const list = await api('GET', '/api/admin/students');
   return list.body.students;

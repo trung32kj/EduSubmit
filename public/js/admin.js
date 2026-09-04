@@ -8,6 +8,8 @@ renderTopbar('/admin.html');
 
 let editingId = null;
 let classes = [];
+/** Bài tập đang hiện, tra theo id — cần để biết bài tập đó đã có PIN chưa. */
+const assignmentById = new Map();
 let currentClass = localStorage.getItem('classFilter') || '';
 
 async function load() {
@@ -34,9 +36,16 @@ function renderClassFilter() {
   sel.value = currentClass;
 
   const dlgSel = clear($('#class'));
-  dlgSel.append(el('option', { value: '', text: '— không thuộc lớp nào —' }));
-  for (const c of classes.filter((c) => c.isActive)) {
-    dlgSel.append(el('option', { value: String(c.id), text: c.name }));
+  const activeClasses = classes.filter((c) => c.isActive);
+  if (!activeClasses.length) {
+    // Không có lớp thì không tạo được bài tập, nói thẳng ra thay vì để người dùng
+    // bấm Lưu rồi mới nhận lỗi.
+    dlgSel.append(el('option', { value: '', text: '— chưa có lớp nào —' }));
+  } else {
+    dlgSel.append(el('option', { value: '', text: '— chọn lớp —' }));
+    for (const c of activeClasses) {
+      dlgSel.append(el('option', { value: String(c.id), text: c.name }));
+    }
   }
 
   $('#roster-hint').textContent = classes.length
@@ -67,6 +76,8 @@ async function loadStorage() {
 }
 
 function render(assignments) {
+  assignmentById.clear();
+  for (const a of assignments) assignmentById.set(a.id, a);
   const host = clear($('#list'));
 
   if (!assignments.length) {
@@ -92,6 +103,7 @@ function render(assignments) {
             : a.isOpen ? el('span', { class: 'badge approved', text: 'Đang mở' })
             : el('span', { class: 'badge late', text: 'Hết hạn' }),
           a.className ? el('span', { class: 'badge info', text: a.className }) : null,
+          a.pin ? el('span', { class: 'badge info', text: `PIN ${a.pin}` }) : null,
         ),
       ),
       el('td', { class: 'small', dataset: { label: 'Hạn nộp' } },
@@ -157,6 +169,7 @@ function openDialog(a) {
   $('#description').value = a?.description ?? '';
   $('#due').value = toDatetimeLocal(a?.dueAt);
   $('#closed').checked = !!a?.isClosed;
+  $('#use-pin').checked = a ? !!a.pin : false;
   // Tạo mới thì mặc định theo lớp đang xem, đỡ phải chọn lại.
   $('#class').value = a ? String(a.classId ?? '') : currentClass;
   setAlert($('#dlg-alert'), '');
@@ -181,8 +194,28 @@ $('#form').addEventListener('submit', (e) => {
       isClosed: $('#closed').checked,
       classId: $('#class').value || null,
     };
+
+    // PIN: chỉ gửi khi trạng thái tick khác với hiện tại, để lần sửa bài tập
+    // không vô tình đổi mã PIN đang dùng.
+    const wantPin = $('#use-pin').checked;
+    const editing = editingId ? assignmentById.get(editingId) : null;
+    const hadPin = !!editing?.pin;
+    if (wantPin !== hadPin) payload.pin = wantPin;
     if (!payload.title.trim()) {
       setAlert($('#dlg-alert'), 'Cần có tên bài tập');
+      $('#title').focus();
+      return;
+    }
+    // Chặn ngay ở đây thay vì để server trả lỗi: bài tập không có lớp thì bảng
+    // tổng hợp luôn trống và không học viên nào nộp được.
+    if (!payload.classId) {
+      setAlert(
+        $('#dlg-alert'),
+        classes.some((c) => c.isActive)
+          ? 'Chọn lớp cho bài tập này.'
+          : 'Chưa có lớp nào. Vào trang "Danh sách lớp" tạo lớp trước.',
+      );
+      $('#class').focus();
       return;
     }
     try {

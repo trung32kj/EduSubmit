@@ -251,6 +251,13 @@ const MIGRATIONS = [
     ALTER TABLE submission_images ADD COLUMN ip TEXT;
     ALTER TABLE submission_images ADD COLUMN user_agent TEXT;
   `),
+
+  // v6 — mã PIN cho từng bài tập.
+  // Khi web mở ra internet, link nộp bài chỉ là một chuỗi: ai có nó là nộp được.
+  // PIN là thứ chỉ người trong lớp biết (giáo viên đọc/chiếu lên bảng).
+  () => db.exec(`
+    ALTER TABLE assignments ADD COLUMN pin TEXT;
+  `),
 ];
 
 export function migrate() {

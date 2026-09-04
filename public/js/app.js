@@ -278,7 +278,25 @@ export function confirmAction(message) {
  *
  * Trả Promise<boolean>. Chữ trên nút chính nói rõ hành động, không phải "OK".
  */
-export function confirmDialog({ title, message, confirmLabel = 'Xác nhận', danger = true, preview }) {
+/**
+ * Hộp thoại xác nhận.
+ *
+ * Ba khe nội dung phụ, KHÔNG dùng lẫn nhau được:
+ *   previewImage — URL ảnh, render thành <img>
+ *   previewText  — văn bản (ví dụ danh sách tên sắp xoá), render thành <pre>
+ *   extra        — một element tự dựng (ví dụ <select> chọn lớp)
+ * Trước đây chỉ có một tham số `preview` dùng làm src của <img>, nên truyền danh
+ * sách tên vào đó là làm hộp thoại throw ngay khi mở.
+ */
+export function confirmDialog({
+  title,
+  message,
+  confirmLabel = 'Xác nhận',
+  danger = true,
+  previewImage,
+  previewText,
+  extra,
+}) {
   return new Promise((resolve) => {
     let done = false;
     const finish = (v) => {
@@ -292,8 +310,10 @@ export function confirmDialog({ title, message, confirmLabel = 'Xác nhận', da
     const dlg = el('dialog', { class: 'modal' },
       el('div', { class: 'card stack modal-body' },
         el('h2', { text: title }),
-        preview ? el('img', { class: 'modal-preview', src: preview, alt: '' }) : null,
+        previewImage ? el('img', { class: 'modal-preview', src: previewImage, alt: '' }) : null,
         message ? el('p', { class: 'small', style: 'white-space:pre-wrap;margin:0', text: message }) : null,
+        previewText ? el('pre', { class: 'modal-list', text: previewText }) : null,
+        extra ?? null,
         el('div', { class: 'row', style: 'justify-content:flex-end' },
           el('button', { class: 'ghost', text: 'Huỷ', onclick: () => finish(false) }),
           el('button', {

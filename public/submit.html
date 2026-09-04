@@ -21,6 +21,20 @@
 
     <div id="closed-box" class="alert warn" hidden></div>
 
+    <!-- Bước PIN: chỉ hiện khi bài tập có đặt mã. Phải qua bước này mới thấy được
+         ô gõ tên, vì gợi ý tên chính là danh sách lớp. -->
+    <form id="pin-form" class="stack" hidden>
+      <div class="alert info small">Bài tập này cần mã PIN. Hỏi giáo viên mã của lớp.</div>
+      <div>
+        <label for="pin">Mã PIN</label>
+        <input type="text" id="pin" inputmode="numeric" autocomplete="off" maxlength="6"
+               pattern="[0-9]*" placeholder="4 chữ số" required
+               style="letter-spacing:.3em;font-size:1.2rem;text-align:center">
+      </div>
+      <div id="pin-alert" class="alert" role="alert"></div>
+      <button type="submit" class="primary big" id="pin-submit">Tiếp tục</button>
+    </form>
+
     <form id="form" class="stack" hidden>
       <div>
         <label for="name">Tên của bạn</label>

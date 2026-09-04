@@ -48,10 +48,20 @@ if (!SECRET) {
 
 const app = express();
 app.disable('x-powered-by');
-// KHÔNG bật trust proxy khi chưa có reverse proxy: 'loopback' cho phép mọi client
-// trên chính máy này gửi X-Forwarded-For giả để lách rate limit và ghi IP sai vào
-// bài nộp. Bật lại (trỏ đúng địa chỉ proxy) khi nào thật sự có proxy.
-if (process.env.TRUST_PROXY) app.set('trust proxy', process.env.TRUST_PROXY);
+
+/**
+ * Chạy sau reverse proxy / tunnel (Cloudflare, ngrok, nginx…).
+ *
+ * Chỉ bật khi THẬT SỰ có proxy: khi bật, Express tin header X-Forwarded-For, nên
+ * nếu không có proxy thì client tự khai IP giả để lách giới hạn tần suất và ghi
+ * IP sai vào bài nộp.
+ *
+ * Giá trị: số bước proxy (thường '1'), 'loopback', hoặc danh sách IP.
+ */
+if (process.env.TRUST_PROXY) {
+  const v = process.env.TRUST_PROXY;
+  app.set('trust proxy', /^\d+$/.test(v) ? Number(v) : v);
+}
 
 app.use(securityHeaders);
 
@@ -72,8 +82,9 @@ app.use(
       // 'strict' thay vì 'lax': không có luồng nào cần cookie khi điều hướng từ
       // site khác sang, nên chọn mức chặt hơn.
       sameSite: 'strict',
-      // Tự bật khi chạy sau HTTPS, không phải sửa code.
-      secure: process.env.HTTPS === '1',
+      // Bật cờ secure khi chạy sau HTTPS. Đặt HTTPS=1, hoặc suy ra từ BASE_URL
+      // để chạy qua tunnel là tự đúng, không phải nhớ thêm một biến nữa.
+      secure: process.env.HTTPS === '1' || (process.env.BASE_URL ?? '').startsWith('https://'),
       maxAge: 30 * 24 * 60 * 60 * 1000,
     },
   }),

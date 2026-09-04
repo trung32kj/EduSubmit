@@ -64,8 +64,12 @@ export function csrfGuard(req, res, next) {
 
   const origin = req.get('origin');
   if (origin) {
-    const expected = `${req.protocol}://${req.get('host')}`;
-    if (origin === expected) return next();
+    // Sau tunnel/proxy, req.protocol và req.get('host') phải khớp với địa chỉ
+    // người dùng thấy. Nếu có BASE_URL thì đó là nguồn đáng tin duy nhất — proxy
+    // có thể chuyển tiếp bằng http nội bộ dù ngoài là https.
+    const allowed = new Set([`${req.protocol}://${req.get('host')}`]);
+    if (process.env.BASE_URL) allowed.add(process.env.BASE_URL.replace(/\/+$/, ''));
+    if (allowed.has(origin)) return next();
     return res.status(403).json({ error: 'Yêu cầu bị chặn vì đến từ trang khác.' });
   }
 

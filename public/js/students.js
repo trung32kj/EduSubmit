@@ -322,7 +322,7 @@ async function bulkDelete(btn) {
     message: lines.join('\n\n'),
     confirmLabel: 'Xoá',
     // Cho xem đúng những tên sắp bị xoá: danh sách dài thì rất dễ tick nhầm.
-    preview: chosen
+    previewText: chosen
       .map((s) => `• ${s.name}${s.note ? ` (${s.note})` : ''}${s.submissionCount ? ` — ${s.submissionCount} bài` : ''}`)
       .join('\n'),
   });
