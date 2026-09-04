@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tổng hợp bài nộp — Bài tập ảnh chứng minh</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div id="topbar-slot" class="topbar-placeholder"></div>
+<main id="main">
+  <div class="card">
+    <header>
+      <h1 id="title">Đang tải…</h1>
+      <div class="row tight">
+        <button class="small" id="link-btn">Link &amp; QR</button>
+        <a class="btn small primary" href="#" id="bulk-link">Tải ảnh lên</a>
+        <a class="btn small" href="#" id="zip-link">Tải ZIP</a>
+      </div>
+    </header>
+
+    <div id="meta" class="stack"></div>
+    <div id="alert" class="alert" role="alert" style="margin-top:12px"></div>
+  </div>
+
+  <div class="card cards-sm">
+    <header>
+      <h2>Danh sách</h2>
+      <div class="row tight">
+        <label class="sr-only" for="status-filter">Lọc theo trạng thái</label>
+        <select id="status-filter" style="width:auto" disabled>
+          <option value="">Tất cả</option>
+          <option value="missing">Chưa nộp</option>
+          <option value="pending">Chờ duyệt</option>
+          <option value="approved">Đạt</option>
+          <option value="rejected">Cần nộp lại</option>
+        </select>
+        <label class="sr-only" for="filter">Tìm học viên</label>
+        <input type="search" id="filter" placeholder="Tìm tên…" style="width:170px" disabled>
+        <button class="small" id="copy-missing">Copy danh sách chưa nộp</button>
+      </div>
+    </header>
+    <div id="list"></div>
+  </div>
+
+  <div class="card cards-sm" id="orphan-card" hidden>
+    <header>
+      <h2>Bài nộp ngoài danh sách lớp</h2>
+      <span class="muted small">Những bạn này không còn trong danh sách của lớp này, nhưng bài nộp vẫn được giữ.</span>
+    </header>
+    <div id="orphans"></div>
+  </div>
+</main>
+
+<dialog id="link-dlg" class="modal" aria-labelledby="link-dlg-title">
+  <div class="card stack modal-body">
+    <h2 id="link-dlg-title">Link nộp bài</h2>
+    <img id="qr" alt="Mã QR của link nộp bài" width="240" height="240"
+         style="align-self:center;max-width:100%;height:auto;border:1px solid var(--line);border-radius:8px">
+    <button class="small ghost" id="qr-zoom" style="align-self:center">Phóng to để cả lớp quét</button>
+    <div>
+      <label for="link-input">Học viên mở link này để nộp</label>
+      <input type="text" id="link-input" readonly>
+    </div>
+    <div id="lan-hint" class="alert info small"></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="ghost" id="copy-link">Copy link</button>
+      <button class="primary" id="link-close">Xong</button>
+    </div>
+  </div>
+</dialog>
+
+<script type="module" src="/js/assignment.js"></script>
+</body>
+</html>

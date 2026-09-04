@@ -1,0 +1,24 @@
+{
+  "name": "bai-tap-anh",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Web nop bai tap bang anh chung minh",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server.js",
+    "demo": "node --disable-warning=ExperimentalWarning scripts/demo.js",
+    "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.mjs",
+    "create-admin": "node --disable-warning=ExperimentalWarning scripts/create-admin.js",
+    "backup": "node --disable-warning=ExperimentalWarning scripts/backup.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "express": "5.2.1",
+    "express-session": "1.19.0",
+    "multer": "2.3.0",
+    "qrcode": "1.5.4"
+  }
+}

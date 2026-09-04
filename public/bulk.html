@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tải ảnh lên — Bài tập ảnh chứng minh</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div id="topbar-slot" class="topbar-placeholder"></div>
+<main id="main">
+  <div class="card">
+    <header>
+      <h1 id="title">Tải ảnh lên</h1>
+      <span class="muted small" id="class-hint"></span>
+      <a href="#" id="back" class="small">← Về bảng tổng hợp</a>
+    </header>
+
+    <div class="stack">
+      <div id="drop-zone" class="drop-zone">
+        <label for="files">Chọn ảnh (chọn nhiều cùng lúc, hoặc kéo-thả vào khung này)</label>
+        <input type="file" id="files" multiple accept="image/jpeg,image/png,image/webp">
+        <p class="small muted" style="margin:6px 0 0">
+          Hệ thống sẽ đoán ảnh nào của bạn nào từ tên file. Ảnh tải từ Zalo thường không có tên người
+          (<span class="mono">IMG_20260831_120301.jpg</span>) nên bạn sẽ cần gán tay — dùng ô gõ tên ở mỗi dòng, gõ không dấu cũng được.
+        </p>
+      </div>
+      <div id="alert" class="alert" role="alert"></div>
+    </div>
+  </div>
+
+  <div class="card cards-sm" id="grid-card" hidden>
+    <header>
+      <h2>Xác nhận trước khi tải lên</h2>
+      <span class="muted small" id="summary"></span>
+      <div class="row tight">
+        <button class="small" id="assign-rest">Gán các dòng trống cho…</button>
+        <button class="small ghost" id="clear-all">Bỏ hết</button>
+      </div>
+    </header>
+
+    <div id="grid"></div>
+
+    <div class="stack" style="margin-top:14px">
+      <div class="progress" id="progress" hidden
+           role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i style="width:0"></i></div>
+      <div class="row">
+        <button class="primary" id="upload-btn">Tải lên</button>
+        <span class="muted small" id="progress-text" role="status"></span>
+      </div>
+      <div id="upload-result" class="stack"></div>
+    </div>
+  </div>
+</main>
+
+<script type="module" src="/js/bulk.js"></script>
+</body>
+</html>

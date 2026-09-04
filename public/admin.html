@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bài tập — Bài tập ảnh chứng minh</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div id="topbar-slot" class="topbar-placeholder"></div>
+<main id="main">
+  <div class="card cards-sm">
+    <header>
+      <h1>Bài tập</h1>
+      <span class="muted small" id="roster-hint"></span>
+      <div class="row tight">
+        <label class="sr-only" for="class-filter">Lọc theo lớp</label>
+        <select id="class-filter" style="width:auto"></select>
+        <button class="primary" id="new-btn">Tạo bài tập</button>
+      </div>
+    </header>
+    <div id="alert" class="alert" role="alert"></div>
+    <div id="storage" hidden style="margin-bottom:10px"></div>
+    <div id="list"></div>
+  </div>
+</main>
+
+<dialog id="dlg" class="modal" aria-labelledby="dlg-title">
+  <form id="form" class="card stack modal-body">
+    <h2 id="dlg-title">Tạo bài tập</h2>
+    <div>
+      <label for="title">Tên bài tập</label>
+      <input type="text" id="title" required maxlength="200" placeholder="Ví dụ: Bài tập tuần 1 — chụp ảnh vở">
+    </div>
+    <div>
+      <label for="class">Lớp</label>
+      <select id="class"></select>
+      <p class="small muted" style="margin:5px 0 0">Chỉ học viên của lớp này thấy tên mình khi nộp bài.</p>
+    </div>
+    <div>
+      <label for="description">Yêu cầu (học viên sẽ đọc được)</label>
+      <textarea id="description" maxlength="5000" placeholder="Chụp rõ trang vở, thấy được ngày làm bài."></textarea>
+    </div>
+    <div>
+      <label for="due">Hạn nộp</label>
+      <input type="datetime-local" id="due">
+      <p class="small muted" style="margin:5px 0 0">Quá hạn là học viên không nộp được nữa. Bạn vẫn upload hộ được. Để trống nếu không cần hạn.</p>
+    </div>
+    <label class="row tight" style="font-weight:500">
+      <input type="checkbox" id="closed" style="width:auto;margin:0">
+      <span>Đóng bài tập (không nhận bài nộp, kể cả khi còn hạn)</span>
+    </label>
+    <div id="dlg-alert" class="alert" role="alert"></div>
+    <div class="row" style="justify-content:flex-end">
+      <button type="button" class="ghost" id="cancel">Huỷ</button>
+      <button type="submit" class="primary" id="save">Lưu</button>
+    </div>
+  </form>
+</dialog>
+
+<script type="module" src="/js/admin.js"></script>
+</body>
+</html>

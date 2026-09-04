@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Danh sách lớp — Bài tập ảnh chứng minh</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div id="topbar-slot" class="topbar-placeholder"></div>
+<main id="main">
+  <div class="card">
+    <header>
+      <h1>Lớp</h1>
+      <span class="muted small">Mỗi bài tập thuộc một lớp. Học viên chỉ thấy tên bạn cùng lớp mình.</span>
+    </header>
+
+    <div class="stack">
+      <div id="class-list"></div>
+      <div class="row">
+        <label class="sr-only" for="new-class-name">Tên lớp mới</label>
+        <input type="text" id="new-class-name" maxlength="100" placeholder="Tên lớp mới, ví dụ: 9A" style="max-width:220px">
+        <button class="primary" id="new-class-btn">Tạo lớp</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <header>
+      <h2>Thêm học viên</h2>
+    </header>
+
+    <div class="stack">
+      <div>
+        <label for="paste">Dán danh sách tên, mỗi dòng một bạn</label>
+        <textarea id="paste" placeholder="Nguyễn Văn A
+Nguyễn Văn A, STT 12
+Đỗ Đình Đạt
+Trần Tường Vy"></textarea>
+        <p class="small muted" style="margin:6px 0 0">
+          Dán trực tiếp từ Excel/Word cũng được. Muốn phân biệt hai bạn trùng tên thì thêm ghi chú sau dấu phẩy
+          (số thứ tự, tên lớp, nickname) — ghi chú sẽ hiện kèm tên ở mọi nơi.
+        </p>
+      </div>
+
+      <div class="row">
+        <div class="grow" style="min-width:170px">
+          <label for="import-class">Thêm vào lớp</label>
+          <select id="import-class"></select>
+        </div>
+        <div class="grow" style="min-width:170px">
+          <label for="group">Nhóm nhỏ (không bắt buộc)</label>
+          <input type="text" id="group" maxlength="100" placeholder="Ví dụ: Tổ 1">
+        </div>
+        <div class="grow" style="min-width:170px">
+          <label for="csv">Hoặc chọn file CSV</label>
+          <input type="file" id="csv" accept=".csv,.txt,text/csv,text/plain">
+        </div>
+      </div>
+
+      <div id="alert" class="alert" role="alert"></div>
+      <div class="row">
+        <button class="primary" id="import-btn">Thêm vào danh sách</button>
+        <span class="muted small" id="preview-hint"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card cards-sm">
+    <header>
+      <h2>Danh sách học viên</h2>
+      <span class="muted small" id="count"></span>
+      <div class="row tight">
+        <label class="sr-only" for="class-filter">Lọc theo lớp</label>
+        <select id="class-filter" style="width:auto"></select>
+        <label class="sr-only" for="filter">Tìm học viên</label>
+        <input type="search" id="filter" placeholder="Tìm tên…" style="width:170px">
+        <label class="row tight small" style="font-weight:500;margin:0">
+          <input type="checkbox" id="show-inactive" style="width:auto;margin:0">
+          <span class="nowrap">Hiện cả bạn đã ẩn</span>
+        </label>
+      </div>
+    </header>
+    <div id="list"></div>
+  </div>
+</main>
+
+<script type="module" src="/js/students.js"></script>
+</body>
+</html>

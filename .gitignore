@@ -1,0 +1,18 @@
+# Toàn bộ dữ liệu thật: DB SQLite, ảnh học viên nộp, bản sao lưu.
+# KHÔNG BAO GIỜ commit thư mục này — nó chứa tên thật, ảnh, và IP của học viên,
+# cùng hash mật khẩu admin. Đẩy lên rồi thì xoá cũng vẫn còn trong lịch sử git.
+data/
+
+node_modules/
+*.log
+.env
+.env.*
+!.env.example
+
+# Cấu hình riêng của máy, không phải của project.
+.claude/settings.local.json
+.vscode/
+.idea/
+
+.DS_Store
+Thumbs.db

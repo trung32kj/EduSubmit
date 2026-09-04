@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nộp bài tập</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="student">
+<main>
+  <div id="loading" class="row" style="padding:28px 0">
+    <span class="spinner"></span><span class="muted">Đang tải…</span>
+  </div>
+
+  <div id="app" hidden class="stack">
+    <div>
+      <h1 id="title"></h1>
+      <p id="deadline" class="small"></p>
+      <p id="description" class="muted" style="white-space:pre-wrap"></p>
+    </div>
+
+    <div id="closed-box" class="alert warn" hidden></div>
+
+    <form id="form" class="stack" hidden>
+      <div>
+        <label for="name">Tên của bạn</label>
+        <input type="text" id="name" autocomplete="off" placeholder="Gõ tên, không cần dấu…" required>
+        <p class="small muted" style="margin:6px 0 0">Gõ ít nhất 2 chữ rồi chọn đúng tên mình trong danh sách gợi ý.</p>
+      </div>
+
+      <div id="picked" class="alert ok small" hidden></div>
+
+      <div>
+        <label for="photos">Ảnh chứng minh</label>
+        <!-- KHÔNG dùng capture="environment": nó mở thẳng camera và chỉ nhận 1 ảnh
+             vừa chụp, học viên không lấy được ảnh đã chụp sẵn trong máy. -->
+        <input type="file" id="photos" accept="image/*" multiple required>
+        <p class="small muted" style="margin:6px 0 0">Chụp rõ nét. Chọn được nhiều ảnh cùng lúc, hoặc chụp mới từ trình chọn ảnh.</p>
+      </div>
+
+      <div id="previews" class="thumbs"></div>
+      <div id="alert" class="alert" role="alert"></div>
+
+      <div>
+        <div class="progress" id="progress" hidden
+             role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i style="width:0"></i></div>
+        <p class="small muted" id="progress-text" role="status" style="margin:6px 0 0"></p>
+      </div>
+
+      <button type="submit" class="primary big" id="submit">Nộp bài</button>
+    </form>
+
+    <div id="done" hidden class="stack">
+      <div class="alert ok">
+        <strong id="done-title"></strong>
+        <div id="done-detail" class="small" style="margin-top:4px"></div>
+      </div>
+      <button class="big" id="again">Nộp thêm ảnh</button>
+    </div>
+  </div>
+</main>
+
+<script type="module" src="/js/submit.js"></script>
+</body>
+</html>
